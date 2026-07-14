@@ -1,0 +1,42 @@
+{
+  "name": "setup-aws-credential-helper",
+  "version": "0.0.0-development",
+  "description": "GitHub Action that configures renewable AWS credentials through credential_process",
+  "private": true,
+  "license": "MIT",
+  "main": "dist/setup.cjs",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "npm run build:setup && npm run build:helper && npm run build:cleanup",
+    "build:setup": "esbuild src/setup.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/setup.cjs",
+    "build:helper": "esbuild src/helper.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/helper.cjs",
+    "build:cleanup": "esbuild src/cleanup.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/cleanup.cjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build"
+  },
+  "dependencies": {
+    "@actions/core": "^3.0.1",
+    "@aws-sdk/client-sts": "^3.1064.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.0.0",
+    "@vitest/coverage-v8": "^4.0.0",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.0.0",
+    "prettier": "^3.8.0",
+    "typescript": "^6.0.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^4.0.0"
+  }
+}

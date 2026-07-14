@@ -1,0 +1,17 @@
+name: Setup AWS credential helper
+description: Configure renewable AWS OIDC credentials through AWS credential_process
+inputs:
+  profiles:
+    description: JSON array of named AWS role profiles
+    required: true
+  default-profile:
+    description: Name of the profile exported as AWS_PROFILE
+    required: true
+runs:
+  using: node24
+  main: dist/setup.cjs
+  post: dist/cleanup.cjs
+  post-if: always()
+branding:
+  icon: key
+  color: orange
