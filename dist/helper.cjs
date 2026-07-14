@@ -25946,12 +25946,17 @@ var LOCK_WAIT_MS = 3e4;
 var DEAD_OWNER_GRACE_MS = 12e4;
 var MALFORMED_OWNER_GRACE_MS = 6e5;
 async function linuxProcessStartTime(pid = process.pid) {
-  const stat = await (0, import_promises.readFile)(`/proc/${pid}/stat`, "utf8");
-  const close = stat.lastIndexOf(")");
-  const fields = stat.slice(close + 2).split(" ");
-  const startTime = fields[19];
-  if (!startTime) throw new Error("could not read process start time");
-  return startTime;
+  try {
+    const stat = await (0, import_promises.readFile)(`/proc/${pid}/stat`, "utf8");
+    const close = stat.lastIndexOf(")");
+    const fields = stat.slice(close + 2).split(" ");
+    const startTime = fields[19];
+    if (!startTime) throw new Error("could not read process start time");
+    return startTime;
+  } catch (error2) {
+    if (pid !== process.pid) throw error2;
+    return `node-${pid}-${Math.floor(Date.now() - process.uptime() * 1e3)}`;
+  }
 }
 var defaultDependencies = {
   now: Date.now,
@@ -26189,12 +26194,14 @@ async function withCredentialCache(options) {
 
 // src/oidc.ts
 var import_node_buffer = require("node:buffer");
-var defaultDependencies2 = {
-  fetch: globalThis.fetch,
-  now: Date.now,
-  sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-  random: Math.random
-};
+function defaultOidcDependencies() {
+  return {
+    fetch: globalThis.fetch,
+    now: Date.now,
+    sleep: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    random: Math.random
+  };
+}
 function decodeClaims(token) {
   const segments = token.split(".");
   if (segments.length !== 3 || !segments[1]) {
@@ -26214,6 +26221,9 @@ function decodeClaims(token) {
 }
 function expectedIssuer(requestUrl2) {
   const host = requestUrl2.hostname.toLowerCase();
+  if (process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" && requestUrl2.protocol === "http:" && (host === "127.0.0.1" || host === "localhost")) {
+    return requestUrl2.origin;
+  }
   if (host === "pipelines.actions.githubusercontent.com" || host === "token.actions.githubusercontent.com") {
     return "https://token.actions.githubusercontent.com";
   }
@@ -26226,7 +26236,8 @@ function expectedIssuer(requestUrl2) {
   throw new Error("GitHub OIDC request URL has an unsupported host");
 }
 function includesAudience(claim, audience) {
-  return claim === audience || Array.isArray(claim) && claim.every((item) => typeof item === "string") ? Array.isArray(claim) ? claim.includes(audience) : true : false;
+  if (typeof claim === "string") return claim === audience;
+  return Array.isArray(claim) && claim.every((item) => typeof item === "string") && claim.includes(audience);
 }
 function sanityCheckOidcToken(options) {
   const claims = decodeClaims(options.token);
@@ -26272,7 +26283,8 @@ function requestUrl(raw, audience) {
 function retryableStatus(status) {
   return status === 408 || status === 429 || status >= 500;
 }
-async function acquireOidcToken(audience, env2, dependencies = defaultDependencies2) {
+async function acquireOidcToken(audience, env2, injectedDependencies) {
+  const dependencies = injectedDependencies ?? defaultOidcDependencies();
   const rawUrl = env2.ACTIONS_ID_TOKEN_REQUEST_URL;
   const requestToken = env2.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
   if (!rawUrl || !requestToken) {
@@ -26375,7 +26387,8 @@ async function readProfileMetadata(metadataPath) {
     throw new Error("profile metadata has an unsupported format");
   }
   const metadata = value;
-  if (!metadata.name || !metadata.roleArn || !metadata.audience || !metadata.region || !metadata.sessionName || !import_node_path7.default.isAbsolute(metadata.cacheRoot) || !metadata.stsEndpoint.startsWith("https://") || !Number.isInteger(metadata.roleDurationSeconds)) {
+  const localTestEndpoint = process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" && metadata.stsEndpoint.startsWith("http://127.0.0.1:");
+  if (!metadata.name || !metadata.roleArn || !metadata.audience || !metadata.region || !metadata.sessionName || !import_node_path7.default.isAbsolute(metadata.cacheRoot) || !metadata.stsEndpoint.startsWith("https://") && !localTestEndpoint || !Number.isInteger(metadata.roleDurationSeconds)) {
     throw new Error("profile metadata is incomplete");
   }
   return metadata;

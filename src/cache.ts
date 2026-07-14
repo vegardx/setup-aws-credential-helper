@@ -44,12 +44,18 @@ export interface CacheDependencies {
 }
 
 async function linuxProcessStartTime(pid = process.pid): Promise<string> {
-  const stat = await readFile(`/proc/${pid}/stat`, "utf8");
-  const close = stat.lastIndexOf(")");
-  const fields = stat.slice(close + 2).split(" ");
-  const startTime = fields[19];
-  if (!startTime) throw new Error("could not read process start time");
-  return startTime;
+  try {
+    const stat = await readFile(`/proc/${pid}/stat`, "utf8");
+    const close = stat.lastIndexOf(")");
+    const fields = stat.slice(close + 2).split(" ");
+    const startTime = fields[19];
+    if (!startTime) throw new Error("could not read process start time");
+    return startTime;
+  } catch (error) {
+    if (pid !== process.pid) throw error;
+    // Tests and development may run off Linux; production is rejected earlier.
+    return `node-${pid}-${Math.floor(Date.now() - process.uptime() * 1000)}`;
+  }
 }
 
 const defaultDependencies: CacheDependencies = {

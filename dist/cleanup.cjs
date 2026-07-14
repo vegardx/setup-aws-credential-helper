@@ -21034,27 +21034,30 @@ function getIDToken(aud) {
 var import_promises = require("node:fs/promises");
 var import_node_path = __toESM(require("node:path"));
 async function validatedCleanupPath(value, runnerTemp) {
-  if (!value || !import_node_path.default.isAbsolute(value) || !import_node_path.default.isAbsolute(runnerTemp)) return;
+  if (!value) return;
+  if (!import_node_path.default.isAbsolute(value) || !import_node_path.default.isAbsolute(runnerTemp)) return null;
   let parent;
   try {
     const parentStat = await (0, import_promises.lstat)(runnerTemp);
-    if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) return;
+    if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) return null;
     parent = await (0, import_promises.realpath)(runnerTemp);
   } catch {
-    return;
+    return null;
   }
-  const relative2 = import_node_path.default.relative(parent, value);
-  if (relative2.includes(import_node_path.default.sep) || !relative2.startsWith("setup-aws-credential-helper-")) {
-    return;
-  }
+  let candidate;
   try {
     const stat2 = await (0, import_promises.lstat)(value);
-    if (stat2.isSymbolicLink() || !stat2.isDirectory()) return;
-    return value;
+    if (stat2.isSymbolicLink() || !stat2.isDirectory()) return null;
+    candidate = await (0, import_promises.realpath)(value);
   } catch (error2) {
-    if (error2.code === "ENOENT") return value;
+    if (error2.code === "ENOENT") return;
     throw error2;
   }
+  const relative2 = import_node_path.default.relative(parent, candidate);
+  if (relative2.includes(import_node_path.default.sep) || !relative2.startsWith("setup-aws-credential-helper-")) {
+    return null;
+  }
+  return candidate;
 }
 async function runCleanup(options = {}) {
   const actionCore = options.core ?? core_exports;
@@ -21063,11 +21066,11 @@ async function runCleanup(options = {}) {
     const directory = actionCore.getState("generated-directory");
     const runnerTemp = env.RUNNER_TEMP ?? "";
     const cleanupPath = await validatedCleanupPath(directory, runnerTemp);
-    if (!cleanupPath) {
-      if (directory)
-        actionCore.warning("ignored unsafe generated-directory state");
+    if (cleanupPath === null) {
+      actionCore.warning("ignored unsafe generated-directory state");
       return;
     }
+    if (!cleanupPath) return;
     await (0, import_promises.rm)(cleanupPath, { recursive: true, force: true });
   } catch (error2) {
     actionCore.warning(

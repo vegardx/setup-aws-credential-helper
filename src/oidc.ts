@@ -15,13 +15,15 @@ export interface OidcDependencies {
   random: () => number;
 }
 
-const defaultDependencies: OidcDependencies = {
-  fetch: globalThis.fetch,
-  now: Date.now,
-  sleep: (milliseconds) =>
-    new Promise((resolve) => setTimeout(resolve, milliseconds)),
-  random: Math.random,
-};
+function defaultOidcDependencies(): OidcDependencies {
+  return {
+    fetch: globalThis.fetch,
+    now: Date.now,
+    sleep: (milliseconds) =>
+      new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    random: Math.random,
+  };
+}
 
 function decodeClaims(token: string): OidcClaims {
   const segments = token.split(".");
@@ -44,6 +46,13 @@ function decodeClaims(token: string): OidcClaims {
 function expectedIssuer(requestUrl: URL): string {
   const host = requestUrl.hostname.toLowerCase();
   if (
+    process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" &&
+    requestUrl.protocol === "http:" &&
+    (host === "127.0.0.1" || host === "localhost")
+  ) {
+    return requestUrl.origin;
+  }
+  if (
     host === "pipelines.actions.githubusercontent.com" ||
     host === "token.actions.githubusercontent.com"
   ) {
@@ -59,12 +68,12 @@ function expectedIssuer(requestUrl: URL): string {
 }
 
 function includesAudience(claim: unknown, audience: string): boolean {
-  return claim === audience ||
-    (Array.isArray(claim) && claim.every((item) => typeof item === "string"))
-    ? Array.isArray(claim)
-      ? claim.includes(audience)
-      : true
-    : false;
+  if (typeof claim === "string") return claim === audience;
+  return (
+    Array.isArray(claim) &&
+    claim.every((item) => typeof item === "string") &&
+    claim.includes(audience)
+  );
 }
 
 export function sanityCheckOidcToken(options: {
@@ -138,8 +147,9 @@ function retryableStatus(status: number): boolean {
 export async function acquireOidcToken(
   audience: string,
   env: NodeJS.ProcessEnv,
-  dependencies: OidcDependencies = defaultDependencies,
+  injectedDependencies?: OidcDependencies,
 ): Promise<string> {
+  const dependencies = injectedDependencies ?? defaultOidcDependencies();
   const rawUrl = env.ACTIONS_ID_TOKEN_REQUEST_URL;
   const requestToken = env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
   if (!rawUrl || !requestToken) {

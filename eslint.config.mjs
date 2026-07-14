@@ -27,5 +27,17 @@ export default tseslint.config(
       "no-console": ["error", { allow: ["error"] }],
     },
   },
+  {
+    files: ["tests/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-base-to-string": "off",
+    },
+  },
   prettier,
 );

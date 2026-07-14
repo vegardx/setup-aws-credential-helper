@@ -39,6 +39,9 @@ export async function readProfileMetadata(
     throw new Error("profile metadata has an unsupported format");
   }
   const metadata = value as ProfileMetadata;
+  const localTestEndpoint =
+    process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" &&
+    metadata.stsEndpoint.startsWith("http://127.0.0.1:");
   if (
     !metadata.name ||
     !metadata.roleArn ||
@@ -46,7 +49,7 @@ export async function readProfileMetadata(
     !metadata.region ||
     !metadata.sessionName ||
     !path.isAbsolute(metadata.cacheRoot) ||
-    !metadata.stsEndpoint.startsWith("https://") ||
+    (!metadata.stsEndpoint.startsWith("https://") && !localTestEndpoint) ||
     !Number.isInteger(metadata.roleDurationSeconds)
   ) {
     throw new Error("profile metadata is incomplete");
