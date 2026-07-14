@@ -1,2 +1,3 @@
 # setup-aws-credential-helper
-TypeScript GitHub Action for renewable AWS credential_process credentials
+
+A TypeScript GitHub Action for configuring renewable AWS credentials through `credential_process`.
