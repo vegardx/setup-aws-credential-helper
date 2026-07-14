@@ -8,7 +8,8 @@ const PROFILE_KEYS = new Set([
   "roleDurationSeconds",
 ]);
 const PROFILE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
-const REGION = /^[a-z]{2}(?:-gov|-iso(?:-[bef])?)?-[a-z]+-\d+$/;
+const REGION =
+  /^(?:[a-z]{2}(?:-gov|-iso)?|us-isob|eu-isoe|us-isof)-[a-z]+-\d+$/;
 const ARN = /^arn:([^:]+):iam::(\d{12}):role\/(.+)$/;
 const CONTROL_OR_NEWLINE = /[\p{Cc}]/u;
 const ROLE_PATH = /^[\w+=,.@/-]+$/;
@@ -58,12 +59,21 @@ export function partitionForRegion(region: string): AwsPartition {
   return "aws";
 }
 
+const PARTITION_ENDPOINT_SUFFIX: Record<AwsPartition, string> = {
+  aws: "amazonaws.com",
+  "aws-cn": "amazonaws.com.cn",
+  "aws-us-gov": "amazonaws.com",
+  "aws-iso": "c2s.ic.gov",
+  "aws-iso-b": "sc2s.sgov.gov",
+  "aws-iso-e": "cloud.adc-e.uk",
+  "aws-iso-f": "csp.hci.ic.gov",
+};
+
 export function stsEndpointForRegion(
   partition: AwsPartition,
   region: string,
 ): string {
-  const suffix = partition === "aws-cn" ? "amazonaws.com.cn" : "amazonaws.com";
-  return `https://sts.${region}.${suffix}`;
+  return `https://sts.${region}.${PARTITION_ENDPOINT_SUFFIX[partition]}`;
 }
 
 function parseProfile(value: unknown, index: number): Profile {
@@ -75,8 +85,11 @@ function parseProfile(value: unknown, index: number): Profile {
   }
 
   const name = requiredString(input.name, `profiles[${index}].name`, 64);
-  if (!PROFILE_NAME.test(name) || name === "default") {
+  if (!PROFILE_NAME.test(name)) {
     throw new Error(`profiles[${index}].name is not a safe named profile`);
+  }
+  if (name === "default") {
+    throw new Error(`profiles[${index}].name must not be "default"`);
   }
 
   const roleArn = requiredString(
@@ -138,6 +151,52 @@ function parseProfile(value: unknown, index: number): Profile {
     roleDurationSeconds,
     partition,
   };
+}
+
+export interface EffectiveProfileValidationInput {
+  name: unknown;
+  roleArn: unknown;
+  region: unknown;
+  audience: unknown;
+  roleDurationSeconds: unknown;
+  partition: unknown;
+  sessionName: unknown;
+  stsEndpoint: unknown;
+}
+
+export function isValidEffectiveProfile(
+  value: EffectiveProfileValidationInput,
+): boolean {
+  if (
+    typeof value.name !== "string" ||
+    !PROFILE_NAME.test(value.name) ||
+    value.name === "default" ||
+    typeof value.roleArn !== "string" ||
+    typeof value.region !== "string" ||
+    typeof value.audience !== "string" ||
+    !AUDIENCE.test(value.audience) ||
+    typeof value.roleDurationSeconds !== "number" ||
+    !Number.isInteger(value.roleDurationSeconds) ||
+    value.roleDurationSeconds < 900 ||
+    value.roleDurationSeconds > 43_200 ||
+    typeof value.sessionName !== "string" ||
+    !/^[\w+=,.@-]{2,64}$/.test(value.sessionName) ||
+    typeof value.stsEndpoint !== "string"
+  ) {
+    return false;
+  }
+  const match = ARN.exec(value.roleArn);
+  if (!match || !(match[1]! in PARTITION_REGION_PREFIX)) return false;
+  const partition = match[1] as AwsPartition;
+  const rolePath = match[3];
+  return (
+    value.partition === partition &&
+    Boolean(rolePath && rolePath.length <= 512 && ROLE_PATH.test(rolePath)) &&
+    REGION.test(value.region) &&
+    PARTITION_REGION_PREFIX[partition].test(value.region) &&
+    partitionForRegion(value.region) === partition &&
+    value.stsEndpoint === stsEndpointForRegion(partition, value.region)
+  );
 }
 
 export function parseProfiles(raw: string): Profile[] {

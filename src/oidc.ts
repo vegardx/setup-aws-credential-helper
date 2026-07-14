@@ -1,3 +1,5 @@
+declare const __TEST_ALLOW_LOCAL_HTTP__: boolean;
+
 import { Buffer } from "node:buffer";
 
 interface OidcClaims {
@@ -46,7 +48,7 @@ function decodeClaims(token: string): OidcClaims {
 function expectedIssuer(requestUrl: URL): string {
   const host = requestUrl.hostname.toLowerCase();
   if (
-    process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" &&
+    __TEST_ALLOW_LOCAL_HTTP__ &&
     requestUrl.protocol === "http:" &&
     (host === "127.0.0.1" || host === "localhost")
   ) {
@@ -130,7 +132,7 @@ function requestUrl(raw: string, audience: string): URL {
   }
   if (url.protocol !== "https:") {
     const localTestAllowed =
-      process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" &&
+      __TEST_ALLOW_LOCAL_HTTP__ &&
       (url.hostname === "127.0.0.1" || url.hostname === "localhost");
     if (!localTestAllowed) {
       throw new Error("GitHub OIDC request URL must use HTTPS");

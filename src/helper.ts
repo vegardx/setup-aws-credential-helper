@@ -1,6 +1,12 @@
+declare const __TEST_ALLOW_LOCAL_HTTP__: boolean;
+
 import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 
+import {
+  isValidEffectiveProfile,
+  type EffectiveProfileValidationInput,
+} from "./input.js";
 import { withCredentialCache } from "./cache.js";
 import { acquireOidcToken } from "./oidc.js";
 import { exchangeWebIdentity, type StsClientLike } from "./sts.js";
@@ -40,17 +46,21 @@ export async function readProfileMetadata(
   }
   const metadata = value as ProfileMetadata;
   const localTestEndpoint =
-    process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" &&
+    __TEST_ALLOW_LOCAL_HTTP__ &&
     metadata.stsEndpoint.startsWith("http://127.0.0.1:");
+  const effective: EffectiveProfileValidationInput = {
+    name: metadata.name,
+    roleArn: metadata.roleArn,
+    region: metadata.region,
+    audience: metadata.audience,
+    roleDurationSeconds: metadata.roleDurationSeconds,
+    partition: metadata.partition,
+    sessionName: metadata.sessionName,
+    stsEndpoint: metadata.stsEndpoint,
+  };
   if (
-    !metadata.name ||
-    !metadata.roleArn ||
-    !metadata.audience ||
-    !metadata.region ||
-    !metadata.sessionName ||
     !path.isAbsolute(metadata.cacheRoot) ||
-    (!metadata.stsEndpoint.startsWith("https://") && !localTestEndpoint) ||
-    !Number.isInteger(metadata.roleDurationSeconds)
+    (!isValidEffectiveProfile(effective) && !localTestEndpoint)
   ) {
     throw new Error("profile metadata is incomplete");
   }

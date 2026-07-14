@@ -33,7 +33,7 @@ describe("profile input validation", () => {
     [[{ ...valid, extra: true }], "unknown key"],
     [[valid, valid], "duplicate"],
     [[{ ...valid, name: "bad\nname" }], "safe"],
-    [[{ ...valid, name: "default" }], "safe named"],
+    [[{ ...valid, name: "default" }], 'must not be "default"'],
     [[{ ...valid, roleArn: "not-an-arn" }], "IAM role ARN"],
     [
       [{ ...valid, roleArn: "arn:aws-cn:iam::123456789012:role/x" }],
@@ -62,6 +62,29 @@ describe("profile input validation", () => {
     expect(stsEndpointForRegion("aws-cn", "cn-north-1")).toBe(
       "https://sts.cn-north-1.amazonaws.com.cn",
     );
+    expect(stsEndpointForRegion("aws-iso", "us-iso-east-1")).toBe(
+      "https://sts.us-iso-east-1.c2s.ic.gov",
+    );
+    expect(stsEndpointForRegion("aws-iso-b", "us-isob-east-1")).toBe(
+      "https://sts.us-isob-east-1.sc2s.sgov.gov",
+    );
+    expect(stsEndpointForRegion("aws-iso-e", "eu-isoe-west-1")).toBe(
+      "https://sts.eu-isoe-west-1.cloud.adc-e.uk",
+    );
+    expect(stsEndpointForRegion("aws-iso-f", "us-isof-south-1")).toBe(
+      "https://sts.us-isof-south-1.csp.hci.ic.gov",
+    );
+    expect(
+      parseProfiles(
+        JSON.stringify([
+          {
+            name: "iso-b",
+            roleArn: "arn:aws-iso-b:iam::123456789012:role/test",
+            region: "us-isob-east-1",
+          },
+        ]),
+      )[0]?.partition,
+    ).toBe("aws-iso-b");
   });
 
   it("normalizes bounded role session names", () => {

@@ -26,7 +26,7 @@ const FILE_MODE = 0o600;
 const DIRECTORY_MODE = 0o700;
 const MAX_CACHE_FILE_BYTES = 64 * 1024;
 const LOCK_WAIT_MS = 30_000;
-const DEAD_OWNER_GRACE_MS = 120_000;
+const DEAD_OWNER_GRACE_MS = 15_000;
 const MALFORMED_OWNER_GRACE_MS = 600_000;
 
 export interface CacheDependencies {
@@ -285,26 +285,30 @@ async function acquireLock(
   const start = dependencies.monotonicNow();
   let processStartTime: string | undefined;
   while (dependencies.monotonicNow() - start < LOCK_WAIT_MS) {
+    let created = false;
     try {
       await mkdir(lockPath, { mode: DIRECTORY_MODE });
-      processStartTime ??= await dependencies.processStartTime();
-      const owner: LockOwner = {
-        version: 1,
-        token,
-        pid: dependencies.pid,
-        processStartTime,
-        createdAtMs: dependencies.now(),
-        hostname: os.hostname(),
-      };
+      created = true;
       try {
+        processStartTime ??= await dependencies.processStartTime();
+        const owner: LockOwner = {
+          version: 1,
+          token,
+          pid: dependencies.pid,
+          processStartTime,
+          createdAtMs: dependencies.now(),
+          hostname: os.hostname(),
+        };
         await writeExclusiveJson(path.join(lockPath, "owner.json"), owner);
+        return owner;
       } catch (error) {
         await rm(lockPath, { recursive: true, force: true });
         throw error;
       }
-      return owner;
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST" || created) {
+        throw error;
+      }
       if (
         await recoverIfStale(lockPath, dependencies.now(), token, dependencies)
       ) {
@@ -322,13 +326,10 @@ async function releaseLock(lockPath: string, owner: LockOwner): Promise<void> {
   await rm(lockPath, { recursive: true, force: true });
 }
 
-async function cleanupTemporaryFiles(
-  directory: string,
-  key: string,
-): Promise<void> {
+async function cleanupTemporaryFiles(directory: string): Promise<void> {
   try {
     for (const name of await readdir(directory)) {
-      if (name.startsWith(`.${key}.tmp.`) && /^[.a-f0-9]+$/.test(name)) {
+      if (/^\.[a-f0-9]+\.tmp\.[a-f0-9]+$/.test(name)) {
         await rm(path.join(directory, name), { force: true });
       }
     }
@@ -377,14 +378,14 @@ export async function withCredentialCache(options: {
   try {
     const current = await readRecord(recordPath, identity, dependencies.now());
     if (current) return current.credentials;
-    await cleanupTemporaryFiles(recordsDirectory, key);
+    await cleanupTemporaryFiles(recordsDirectory);
     const issuedAtMs = dependencies.now();
     const credentials = await options.refresh();
     const expirationMs = Date.parse(credentials.expiration);
     if (
       !validCredentials(credentials) ||
       !Number.isFinite(expirationMs) ||
-      expirationMs <= issuedAtMs + 60_000 ||
+      expirationMs <= issuedAtMs + refreshWindow(identity.durationSeconds) ||
       expirationMs > issuedAtMs + identity.durationSeconds * 1000 + 300_000
     ) {
       throw new Error("AWS STS returned invalid or implausible credentials");

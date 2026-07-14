@@ -56,7 +56,10 @@ function invokeHelper(
 }
 
 beforeAll(async () => {
-  helperBundle = path.resolve("dist/helper.cjs");
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  await promisify(execFile)("npm", ["run", "build:helper:test"]);
+  helperBundle = path.resolve("dist-test/helper.cjs");
 });
 
 afterEach(async () => {
@@ -143,7 +146,7 @@ describe("mocked Linux end-to-end behavior", () => {
           invokeHelper(metadataPath, {
             ACTIONS_ID_TOKEN_REQUEST_URL: `http://127.0.0.1:${address.port}/oidc?api=1`,
             ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-secret",
-            CREDENTIAL_HELPER_TEST_ALLOW_HTTP: "1",
+            CREDENTIAL_HELPER_TEST_ALLOW_HTTP: undefined,
           }),
         ),
       );

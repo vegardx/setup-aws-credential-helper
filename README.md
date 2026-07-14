@@ -36,13 +36,15 @@ steps:
 
 `profiles` is a JSON array. Every object requires:
 
-- `name`: unique safe AWS profile name
+- `name`: unique, 1–64 characters matching `[A-Za-z0-9][A-Za-z0-9_.-]*`; the reserved name `default` is not accepted
 - `roleArn`: IAM role ARN
 - `region`: region compatible with the ARN partition
 
+Up to 50 profiles are accepted. Unknown object keys are rejected.
+
 Optional fields:
 
-- `audience`: defaults to `sts.amazonaws.com`
+- `audience`: defaults to `sts.amazonaws.com`; 1–255 URL-safe characters (`A-Za-z0-9._:/-`)
 - `roleDurationSeconds`: defaults to `3600`, valid range `900`–`43200`; the IAM role's `MaxSessionDuration` remains authoritative
 
 The action exports `AWS_CONFIG_FILE`, `AWS_PROFILE`, and `AWS_SDK_LOAD_CONFIG=1` for later steps. It does not export a global region, because every profile carries its own region. Terraform backend and provider authentication are separate: select/configure the backend profile independently when it differs from the provider profile.

@@ -25926,6 +25926,53 @@ module.exports = __toCommonJS(helper_exports);
 var import_promises4 = require("node:fs/promises");
 var import_node_path7 = __toESM(require("node:path"));
 
+// src/input.ts
+var PROFILE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+var REGION = /^(?:[a-z]{2}(?:-gov|-iso)?|us-isob|eu-isoe|us-isof)-[a-z]+-\d+$/;
+var ARN = /^arn:([^:]+):iam::(\d{12}):role\/(.+)$/;
+var ROLE_PATH = /^[\w+=,.@/-]+$/;
+var AUDIENCE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,254}$/;
+var PARTITION_REGION_PREFIX = {
+  aws: /^(?!cn-|us-gov-|us-iso(?:-[bef])?-)/,
+  "aws-cn": /^cn-/,
+  "aws-us-gov": /^us-gov-/,
+  "aws-iso": /^us-iso-/,
+  "aws-iso-b": /^us-isob-/,
+  "aws-iso-e": /^eu-isoe-/,
+  "aws-iso-f": /^us-isof-/
+};
+function partitionForRegion(region) {
+  if (region.startsWith("cn-")) return "aws-cn";
+  if (region.startsWith("us-gov-")) return "aws-us-gov";
+  if (region.startsWith("us-isob-")) return "aws-iso-b";
+  if (region.startsWith("us-iso-")) return "aws-iso";
+  if (region.startsWith("eu-isoe-")) return "aws-iso-e";
+  if (region.startsWith("us-isof-")) return "aws-iso-f";
+  return "aws";
+}
+var PARTITION_ENDPOINT_SUFFIX = {
+  aws: "amazonaws.com",
+  "aws-cn": "amazonaws.com.cn",
+  "aws-us-gov": "amazonaws.com",
+  "aws-iso": "c2s.ic.gov",
+  "aws-iso-b": "sc2s.sgov.gov",
+  "aws-iso-e": "cloud.adc-e.uk",
+  "aws-iso-f": "csp.hci.ic.gov"
+};
+function stsEndpointForRegion(partition2, region) {
+  return `https://sts.${region}.${PARTITION_ENDPOINT_SUFFIX[partition2]}`;
+}
+function isValidEffectiveProfile(value) {
+  if (typeof value.name !== "string" || !PROFILE_NAME.test(value.name) || value.name === "default" || typeof value.roleArn !== "string" || typeof value.region !== "string" || typeof value.audience !== "string" || !AUDIENCE.test(value.audience) || typeof value.roleDurationSeconds !== "number" || !Number.isInteger(value.roleDurationSeconds) || value.roleDurationSeconds < 900 || value.roleDurationSeconds > 43200 || typeof value.sessionName !== "string" || !/^[\w+=,.@-]{2,64}$/.test(value.sessionName) || typeof value.stsEndpoint !== "string") {
+    return false;
+  }
+  const match = ARN.exec(value.roleArn);
+  if (!match || !(match[1] in PARTITION_REGION_PREFIX)) return false;
+  const partition2 = match[1];
+  const rolePath = match[3];
+  return value.partition === partition2 && Boolean(rolePath && rolePath.length <= 512 && ROLE_PATH.test(rolePath)) && REGION.test(value.region) && PARTITION_REGION_PREFIX[partition2].test(value.region) && partitionForRegion(value.region) === partition2 && value.stsEndpoint === stsEndpointForRegion(partition2, value.region);
+}
+
 // src/cache.ts
 var import_node_crypto = require("node:crypto");
 var import_node_fs = require("node:fs");
@@ -25943,7 +25990,7 @@ var FILE_MODE = 384;
 var DIRECTORY_MODE = 448;
 var MAX_CACHE_FILE_BYTES = 64 * 1024;
 var LOCK_WAIT_MS = 3e4;
-var DEAD_OWNER_GRACE_MS = 12e4;
+var DEAD_OWNER_GRACE_MS = 15e3;
 var MALFORMED_OWNER_GRACE_MS = 6e5;
 async function linuxProcessStartTime(pid = process.pid) {
   try {
@@ -26100,26 +26147,30 @@ async function acquireLock(lockPath, dependencies) {
   const start = dependencies.monotonicNow();
   let processStartTime;
   while (dependencies.monotonicNow() - start < LOCK_WAIT_MS) {
+    let created = false;
     try {
       await (0, import_promises.mkdir)(lockPath, { mode: DIRECTORY_MODE });
-      processStartTime ??= await dependencies.processStartTime();
-      const owner = {
-        version: 1,
-        token,
-        pid: dependencies.pid,
-        processStartTime,
-        createdAtMs: dependencies.now(),
-        hostname: import_node_os.default.hostname()
-      };
+      created = true;
       try {
+        processStartTime ??= await dependencies.processStartTime();
+        const owner = {
+          version: 1,
+          token,
+          pid: dependencies.pid,
+          processStartTime,
+          createdAtMs: dependencies.now(),
+          hostname: import_node_os.default.hostname()
+        };
         await writeExclusiveJson(import_node_path.default.join(lockPath, "owner.json"), owner);
+        return owner;
       } catch (error2) {
         await (0, import_promises.rm)(lockPath, { recursive: true, force: true });
         throw error2;
       }
-      return owner;
     } catch (error2) {
-      if (error2.code !== "EEXIST") throw error2;
+      if (error2.code !== "EEXIST" || created) {
+        throw error2;
+      }
       if (await recoverIfStale(lockPath, dependencies.now(), token, dependencies)) {
         continue;
       }
@@ -26133,10 +26184,10 @@ async function releaseLock(lockPath, owner) {
   if (current?.token !== owner.token) return;
   await (0, import_promises.rm)(lockPath, { recursive: true, force: true });
 }
-async function cleanupTemporaryFiles(directory, key) {
+async function cleanupTemporaryFiles(directory) {
   try {
     for (const name of await (0, import_promises.readdir)(directory)) {
-      if (name.startsWith(`.${key}.tmp.`) && /^[.a-f0-9]+$/.test(name)) {
+      if (/^\.[a-f0-9]+\.tmp\.[a-f0-9]+$/.test(name)) {
         await (0, import_promises.rm)(import_node_path.default.join(directory, name), { force: true });
       }
     }
@@ -26171,11 +26222,11 @@ async function withCredentialCache(options) {
   try {
     const current = await readRecord(recordPath, identity, dependencies.now());
     if (current) return current.credentials;
-    await cleanupTemporaryFiles(recordsDirectory, key);
+    await cleanupTemporaryFiles(recordsDirectory);
     const issuedAtMs = dependencies.now();
     const credentials = await options.refresh();
     const expirationMs = Date.parse(credentials.expiration);
-    if (!validCredentials(credentials) || !Number.isFinite(expirationMs) || expirationMs <= issuedAtMs + 6e4 || expirationMs > issuedAtMs + identity.durationSeconds * 1e3 + 3e5) {
+    if (!validCredentials(credentials) || !Number.isFinite(expirationMs) || expirationMs <= issuedAtMs + refreshWindow(identity.durationSeconds) || expirationMs > issuedAtMs + identity.durationSeconds * 1e3 + 3e5) {
       throw new Error("AWS STS returned invalid or implausible credentials");
     }
     const record = {
@@ -26221,7 +26272,7 @@ function decodeClaims(token) {
 }
 function expectedIssuer(requestUrl2) {
   const host = requestUrl2.hostname.toLowerCase();
-  if (process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" && requestUrl2.protocol === "http:" && (host === "127.0.0.1" || host === "localhost")) {
+  if (false) {
     return requestUrl2.origin;
   }
   if (host === "pipelines.actions.githubusercontent.com" || host === "token.actions.githubusercontent.com") {
@@ -26272,7 +26323,7 @@ function requestUrl(raw, audience) {
     throw new Error("ACTIONS_ID_TOKEN_REQUEST_URL is malformed");
   }
   if (url.protocol !== "https:") {
-    const localTestAllowed = process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" && (url.hostname === "127.0.0.1" || url.hostname === "localhost");
+    const localTestAllowed = false;
     if (!localTestAllowed) {
       throw new Error("GitHub OIDC request URL must use HTTPS");
     }
@@ -26387,8 +26438,18 @@ async function readProfileMetadata(metadataPath) {
     throw new Error("profile metadata has an unsupported format");
   }
   const metadata = value;
-  const localTestEndpoint = process.env.CREDENTIAL_HELPER_TEST_ALLOW_HTTP === "1" && metadata.stsEndpoint.startsWith("http://127.0.0.1:");
-  if (!metadata.name || !metadata.roleArn || !metadata.audience || !metadata.region || !metadata.sessionName || !import_node_path7.default.isAbsolute(metadata.cacheRoot) || !metadata.stsEndpoint.startsWith("https://") && !localTestEndpoint || !Number.isInteger(metadata.roleDurationSeconds)) {
+  const localTestEndpoint = false;
+  const effective = {
+    name: metadata.name,
+    roleArn: metadata.roleArn,
+    region: metadata.region,
+    audience: metadata.audience,
+    roleDurationSeconds: metadata.roleDurationSeconds,
+    partition: metadata.partition,
+    sessionName: metadata.sessionName,
+    stsEndpoint: metadata.stsEndpoint
+  };
+  if (!import_node_path7.default.isAbsolute(metadata.cacheRoot) || !isValidEffectiveProfile(effective) && !localTestEndpoint) {
     throw new Error("profile metadata is incomplete");
   }
   return metadata;

@@ -11,7 +11,8 @@
   "scripts": {
     "build": "npm run build:setup && npm run build:helper && npm run build:cleanup",
     "build:setup": "esbuild src/setup.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/setup.cjs",
-    "build:helper": "esbuild src/helper.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/helper.cjs",
+    "build:helper": "esbuild src/helper.ts --bundle --platform=node --target=node24 --format=cjs --define:__TEST_ALLOW_LOCAL_HTTP__=false --outfile=dist/helper.cjs",
+    "build:helper:test": "esbuild src/helper.ts --bundle --platform=node --target=node24 --format=cjs --define:__TEST_ALLOW_LOCAL_HTTP__=true --outfile=dist-test/helper.cjs",
     "build:cleanup": "esbuild src/cleanup.ts --bundle --platform=node --target=node24 --format=cjs --outfile=dist/cleanup.cjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

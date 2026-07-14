@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  define: { __TEST_ALLOW_LOCAL_HTTP__: "false" },
   test: {
     coverage: {
       provider: "v8",

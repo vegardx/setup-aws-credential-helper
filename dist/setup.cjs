@@ -21051,7 +21051,7 @@ var PROFILE_KEYS = /* @__PURE__ */ new Set([
   "roleDurationSeconds"
 ]);
 var PROFILE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
-var REGION = /^[a-z]{2}(?:-gov|-iso(?:-[bef])?)?-[a-z]+-\d+$/;
+var REGION = /^(?:[a-z]{2}(?:-gov|-iso)?|us-isob|eu-isoe|us-isof)-[a-z]+-\d+$/;
 var ARN = /^arn:([^:]+):iam::(\d{12}):role\/(.+)$/;
 var CONTROL_OR_NEWLINE = /[\p{Cc}]/u;
 var ROLE_PATH = /^[\w+=,.@/-]+$/;
@@ -21086,9 +21086,17 @@ function partitionForRegion(region) {
   if (region.startsWith("us-isof-")) return "aws-iso-f";
   return "aws";
 }
+var PARTITION_ENDPOINT_SUFFIX = {
+  aws: "amazonaws.com",
+  "aws-cn": "amazonaws.com.cn",
+  "aws-us-gov": "amazonaws.com",
+  "aws-iso": "c2s.ic.gov",
+  "aws-iso-b": "sc2s.sgov.gov",
+  "aws-iso-e": "cloud.adc-e.uk",
+  "aws-iso-f": "csp.hci.ic.gov"
+};
 function stsEndpointForRegion(partition, region) {
-  const suffix = partition === "aws-cn" ? "amazonaws.com.cn" : "amazonaws.com";
-  return `https://sts.${region}.${suffix}`;
+  return `https://sts.${region}.${PARTITION_ENDPOINT_SUFFIX[partition]}`;
 }
 function parseProfile(value, index) {
   const input = record(value, `profiles[${index}]`);
@@ -21098,8 +21106,11 @@ function parseProfile(value, index) {
     }
   }
   const name = requiredString(input.name, `profiles[${index}].name`, 64);
-  if (!PROFILE_NAME.test(name) || name === "default") {
+  if (!PROFILE_NAME.test(name)) {
     throw new Error(`profiles[${index}].name is not a safe named profile`);
+  }
+  if (name === "default") {
+    throw new Error(`profiles[${index}].name must not be "default"`);
   }
   const roleArn = requiredString(
     input.roleArn,
