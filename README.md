@@ -59,7 +59,7 @@ For released use, prefer an immutable full commit SHA. The floating `@v1` refere
 | `name` | yes | Unique, 1–64 characters, matching `[A-Za-z0-9][A-Za-z0-9_.-]*`; `default` is reserved |
 | `roleArn` | yes | IAM role ARN in a supported AWS partition |
 | `region` | yes | Regional STS region compatible with the ARN partition |
-| `audience` | no | Defaults to `sts.amazonaws.com`; 1–255 characters from `A-Za-z0-9._:/-` |
+| `audience` | no | Defaults to `sts.amazonaws.com`; 1–255 characters, beginning with an alphanumeric character and otherwise using `A-Za-z0-9._:/-` |
 | `roleDurationSeconds` | no | Defaults to `3600`; integer from `900` through `43200` |
 
 The requested duration is not automatically reduced. The role's IAM `MaxSessionDuration` remains authoritative, so STS rejects a request that exceeds it.
