@@ -16,6 +16,14 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
+    files: ["scripts/**/*.mjs"],
+    extends: [tseslint.configs.disableTypeChecked],
+    languageOptions: {
+      ecmaVersion: 2023,
+      globals: { ...globals.node },
+    },
+  },
+  {
     files: ["**/*.ts"],
     languageOptions: {
       ecmaVersion: 2023,

@@ -1,0 +1,6 @@
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        github/*: ref-pin
+        "*": hash-pin
