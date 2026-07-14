@@ -1,5 +1,8 @@
 # Setup AWS credential helper
 
+[![CI](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ci.yml)
+[![Workflow security](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/workflow-security.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/workflow-security.yml)
+
 A Linux GitHub Action that configures renewable AWS credentials through the standard AWS [`credential_process`](https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html) interface. It creates private, job-local AWS named profiles and exchanges fresh GitHub Actions OIDC tokens for temporary AWS STS credentials when a compatible AWS client asks for credentials.
 
 The action does not export AWS access keys. Instead, later processes discover a generated shared AWS config and invoke the bundled helper as credentials expire.
@@ -48,7 +51,7 @@ jobs:
 
 Replace the example account IDs, roles, and regions. The selected `default-profile` must name one of the supplied profiles; it is required even when only one profile is configured.
 
-For released use, prefer an immutable full commit SHA. The floating `@v1` reference above is convenient for illustration but can move between compatible v1 releases.
+For released use, prefer an immutable full commit SHA. The floating `@v1` reference above is convenient for illustration but can move between compatible v1 releases. The release workflow creates immutable `vX.Y.Z` tags and moves `vX` only after the release succeeds.
 
 ### Inputs
 
@@ -330,7 +333,7 @@ npm run test:coverage
 
 The production JavaScript bundles in `dist/` are committed. See [CONTRIBUTING.md](CONTRIBUTING.md) for development and review expectations and [docs/architecture.md](docs/architecture.md) for component boundaries.
 
-Live AWS/OIDC validation is intentionally not part of CI. The repository owner can follow the separate [deferred live-test checklist](docs/live-test-checklist.md) when a least-privilege test role is available.
+Live AWS/OIDC validation is intentionally not part of CI. The repository owner can follow the separate [deferred live-test checklist](docs/live-test-checklist.md) when a least-privilege test role is available. Releases publish only GitHub tags and release notes; the project is not published to npm or GitHub Marketplace.
 
 ## License
 
