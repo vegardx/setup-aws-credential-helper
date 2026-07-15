@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write
+      contents: write # semantic-release creates the immutable tag and GitHub Release notes.
     outputs:
       released: ${{ steps.semantic.outputs.new-release-published }}
       version: ${{ steps.semantic.outputs.new-release-version }}
@@ -96,7 +96,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: write
+      contents: write # Moves only the floating vX tag after a real release.
     steps:
       - name: Checkout released history
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
