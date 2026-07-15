@@ -4,13 +4,14 @@ import { readFile } from "node:fs/promises";
 const diff = spawnSync("git", ["diff", "--exit-code", "--", "dist/"], {
   encoding: "utf8",
 });
+let failed = false;
 if (diff.status !== 0) {
   process.stdout.write(diff.stdout);
   process.stderr.write(diff.stderr);
   console.error(
     "Committed dist/ bundles are not reproducible from the source.",
   );
-  process.exitCode = 1;
+  failed = true;
 }
 
 const helper = await readFile("dist/helper.cjs", "utf8");
@@ -24,10 +25,12 @@ for (const [needle, description] of forbidden) {
     console.error(
       `Production helper bundle contains forbidden ${description}.`,
     );
-    process.exitCode = 1;
+    failed = true;
   }
 }
 
-if (process.exitCode !== 1) {
+if (failed) {
+  process.exitCode = 1;
+} else {
   console.log("Committed bundles and production helper isolation verified.");
 }
