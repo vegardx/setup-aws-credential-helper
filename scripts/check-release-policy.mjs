@@ -83,7 +83,7 @@ if (!releaseConfig.includes('branches: ["main"]')) {
 if (!releaseConfig.includes('tagFormat: "v${version}"')) {
   errors.push("release.config.mjs: immutable tags must use vX.Y.Z format");
 }
-if (/prepareCmd|publishCmd|addChannelCmd/u.test(releaseConfig)) {
+if (/\b(?:cmd|prepareCmd|publishCmd|addChannelCmd)\s*:/u.test(releaseConfig)) {
   errors.push(
     "release.config.mjs: release commits or extra publication are forbidden",
   );

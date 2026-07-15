@@ -26,13 +26,20 @@ for (const file of files) {
       `${relativePath}: top-level permissions must be contents: read`,
     );
   }
-  if (/\bid-token:\s*write\b/u.test(content)) {
-    errors.push(
-      `${relativePath}: id-token: write is forbidden in repository workflows`,
-    );
-  }
   for (const [index, line] of lines.entries()) {
-    const writePermission = /^\s{4,}([A-Za-z-]+):\s*write\s*$/u.exec(line);
+    if (/^\s*permissions:\s*(?:write-all|read-all|\{)/u.test(line)) {
+      errors.push(
+        `${relativePath}:${index + 1}: scalar and inline permissions are forbidden`,
+      );
+    }
+    if (/\bid-token:\s*write\b/u.test(line)) {
+      errors.push(
+        `${relativePath}:${index + 1}: id-token: write is forbidden in repository workflows`,
+      );
+    }
+    const writePermission = /^\s{4,}([A-Za-z-]+):\s*write(?:\s+#.*)?$/u.exec(
+      line,
+    );
     if (!writePermission) continue;
     const permission = writePermission[1];
     if (file !== "release.yml" || permission !== "contents") {
