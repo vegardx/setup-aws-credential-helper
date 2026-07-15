@@ -1,0 +1,51 @@
+import js from "@eslint/js";
+import prettier from "eslint-config-prettier";
+import globals from "globals";
+import tseslint from "typescript-eslint";
+
+export default tseslint.config(
+  {
+    ignores: [
+      "dist/**",
+      "dist-test/**",
+      "coverage/**",
+      "node_modules/**",
+      "*.config.mjs",
+    ],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  {
+    files: ["**/*.ts"],
+    languageOptions: {
+      ecmaVersion: 2023,
+      globals: { ...globals.node },
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-explicit-any": "error",
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        { argsIgnorePattern: "^_" },
+      ],
+      "no-console": ["error", { allow: ["error"] }],
+    },
+  },
+  {
+    files: ["tests/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unsafe-assignment": "off",
+      "@typescript-eslint/no-unsafe-member-access": "off",
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/no-misused-promises": "off",
+      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-base-to-string": "off",
+    },
+  },
+  prettier,
+);

@@ -1,0 +1,8 @@
+dist
+dist-test
+coverage
+node_modules
+package-lock.json
+action.yml
+*.md
+LICENSE
