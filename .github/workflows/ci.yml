@@ -55,3 +55,8 @@ jobs:
 
       - name: Verify committed bundles and helper isolation
         run: npm run verify:dist
+
+      - name: Verify workflow and release policy
+        run: |
+          npm run check:workflows
+          npm run check:release
