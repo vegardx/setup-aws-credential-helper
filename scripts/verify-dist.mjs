@@ -4,10 +4,17 @@ import { readFile } from "node:fs/promises";
 const diff = spawnSync("git", ["diff", "--exit-code", "--", "dist/"], {
   encoding: "utf8",
 });
+const status = spawnSync(
+  "git",
+  ["status", "--porcelain", "--untracked-files=all", "--", "dist/"],
+  { encoding: "utf8" },
+);
 let failed = false;
-if (diff.status !== 0) {
+if (diff.status !== 0 || status.status !== 0 || status.stdout.length > 0) {
   process.stdout.write(diff.stdout);
+  process.stdout.write(status.stdout);
   process.stderr.write(diff.stderr);
+  process.stderr.write(status.stderr);
   console.error(
     "Committed dist/ bundles are not reproducible from the source.",
   );
