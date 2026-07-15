@@ -5,7 +5,10 @@ on:
     paths:
       - ".github/**"
       - "action.yml"
+      - "release.config.mjs"
+      - "scripts/check-release-policy.mjs"
       - "scripts/check-workflows.mjs"
+      - "scripts/update-major-tag.sh"
       - "package.json"
       - "package-lock.json"
       - "zizmor.yml"
@@ -15,7 +18,10 @@ on:
     paths:
       - ".github/**"
       - "action.yml"
+      - "release.config.mjs"
+      - "scripts/check-release-policy.mjs"
       - "scripts/check-workflows.mjs"
+      - "scripts/update-major-tag.sh"
       - "package.json"
       - "package-lock.json"
       - "zizmor.yml"
@@ -47,8 +53,10 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Enforce workflow policy
-        run: npm run check:workflows
+      - name: Enforce workflow and release policy
+        run: |
+          npm run check:workflows
+          npm run check:release
 
   actionlint:
     name: actionlint

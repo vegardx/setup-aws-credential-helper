@@ -51,8 +51,10 @@ jobs:
           npm run build
           npm run verify:dist
 
-      - name: Verify workflow policy
-        run: npm run check:workflows
+      - name: Verify workflow and release policy
+        run: |
+          npm run check:workflows
+          npm run check:release
 
   release:
     name: Create semantic release
@@ -81,7 +83,7 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Create immutable release tag and GitHub release
+      - name: Create immutable release tag and GitHub Release notes
         id: semantic
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
