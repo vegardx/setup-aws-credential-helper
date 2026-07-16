@@ -397,9 +397,7 @@ skip_s3_checksum = true
 
     const countersAfter = await options.harness.invocationCalls();
     expect(countersAfter.state).toBeGreaterThan(countersBefore.state);
-    expect(countersAfter.deployment).toBeGreaterThan(
-      countersBefore.deployment,
-    );
+    expect(countersAfter.deployment).toBeGreaterThan(countersBefore.deployment);
     const cacheFiles = await run(
       "find",
       [path.join(options.root, "cache"), "-type", "f"],
