@@ -46,11 +46,11 @@ interface ContainerInspect {
 export function sanitizeDiagnostics(value: string): string {
   return value
     .replace(
-      /(authorization\s*[:=]\s*(?:bearer\s+)?)[^\s,;]+/gi,
+      /(authorization\s*["']?\s*[:=]\s*["']?(?:bearer\s+)?)[^\s,;"']+/gi,
       "$1[redacted]",
     )
     .replace(
-      /((?:secretaccesskey|sessiontoken|webidentitytoken)\s*[:=]\s*)[^\s,;<]+/gi,
+      /((?:secretaccesskey|sessiontoken|webidentitytoken)\s*["']?\s*[:=]\s*["']?)[^\s,;<"']+/gi,
       "$1[redacted]",
     )
     .slice(-MAX_DIAGNOSTIC_CHARS);
