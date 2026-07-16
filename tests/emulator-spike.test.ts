@@ -36,7 +36,6 @@ import {
   type EmulatorAdapter,
   type EmulatorRun,
 } from "./emulator/adapter.js";
-import { flociAdapter } from "./emulator/floci.js";
 import {
   createIdentityHarness,
   SPIKE_PROFILES,
@@ -71,11 +70,8 @@ beforeAll(async () => {
   helperBundle = path.resolve("dist-test/helper.cjs");
 });
 
-function candidateAdapter(): EmulatorAdapter {
-  const name = process.env.EMULATOR_CANDIDATE ?? "floci";
-  if (name === "floci") return flociAdapter();
-  if (name === "moto") return motoAdapter();
-  throw new Error(`Unsupported EMULATOR_CANDIDATE: ${name}`);
+function selectedAdapter(): EmulatorAdapter {
+  return motoAdapter();
 }
 
 async function awsCli(
@@ -429,8 +425,8 @@ async function seedProfiles(
   >;
 }
 
-test("runs the common secretless emulator acceptance spike", async () => {
-  const adapter = candidateAdapter();
+test("runs the selected secretless emulator acceptance smoke test", async () => {
+  const adapter = selectedAdapter();
   const root = await mkdtemp(path.join(os.tmpdir(), "emulator-spike-"));
   const suffix = randomBytes(5).toString("hex");
   let emulator: EmulatorRun | undefined;
