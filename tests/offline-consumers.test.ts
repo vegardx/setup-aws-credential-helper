@@ -12,6 +12,7 @@ import { fromIni } from "@aws-sdk/credential-providers";
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
+  access,
   copyFile,
   cp,
   mkdtemp,
@@ -298,15 +299,29 @@ async function naturalRenewalProbe(options: {
 async function copyIacFixture(
   engineRoot: string,
   engine: "terraform" | "opentofu",
+  fixture: "main.tf" | "renewal.tf" = "main.tf",
 ) {
   await cp(
-    path.resolve("tests/integration/iac/main.tf"),
-    path.join(engineRoot, "main.tf"),
+    path.resolve(`tests/integration/iac/${fixture}`),
+    path.join(engineRoot, fixture),
   );
   await copyFile(
     path.resolve(`tests/integration/iac/.terraform.lock.${engine}.hcl`),
     path.join(engineRoot, ".terraform.lock.hcl"),
   );
+}
+
+async function waitForPath(filePath: string): Promise<void> {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    try {
+      await access(filePath);
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+  }
+  throw new Error(`timed out waiting for ${filePath}`);
 }
 
 async function iacProbe(options: {
@@ -443,6 +458,171 @@ skip_s3_checksum = true
   }
 }
 
+async function iacNaturalRenewalProbe(options: {
+  engine: "terraform" | "opentofu";
+  emulator: EmulatorRun;
+  root: string;
+  suffix: string;
+}) {
+  const command = options.engine === "terraform" ? "terraform" : "tofu";
+  const renewalRoot = path.join(options.root, `${options.engine}-renewal`);
+  const engineRoot = path.join(renewalRoot, "work");
+  await mkdir(engineRoot, { recursive: true, mode: 0o700 });
+  const harness = await createIdentityHarness({
+    root: renewalRoot,
+    helperBundle,
+    roleDurationSeconds: 8,
+  });
+  const stateBucket = `renewal-state-${options.engine}-${options.suffix}`;
+  const workloadBucket = `renewal-work-${options.engine}-${options.suffix}`;
+  const markerPath = path.join(renewalRoot, "before-expiration-ready");
+  const bootstrap = new S3Client({
+    endpoint: options.emulator.endpoint,
+    region,
+    forcePathStyle: true,
+    credentials: provider(harness, "identity"),
+  });
+  await bootstrap.send(new CreateBucketCommand({ Bucket: stateBucket }));
+  await bootstrap.send(new CreateBucketCommand({ Bucket: workloadBucket }));
+  bootstrap.destroy();
+  await copyIacFixture(engineRoot, options.engine, "renewal.tf");
+
+  const backend = path.join(engineRoot, "backend.generated.hcl");
+  await writeFile(
+    backend,
+    `bucket = "${stateBucket}"
+key = "${options.engine}/renewal.tfstate"
+region = "${region}"
+profile = "state"
+shared_config_files = ["${harness.configPath}"]
+endpoints = { s3 = "${options.emulator.endpoint}" }
+use_path_style = true
+skip_credentials_validation = true
+skip_metadata_api_check = true
+skip_region_validation = true
+skip_requesting_account_id = true
+skip_s3_checksum = true
+`,
+    { mode: 0o600 },
+  );
+  const env = {
+    ...cleanEnv(harness, "identity"),
+    TF_IN_AUTOMATION: "1",
+    CHECKPOINT_DISABLE: "1",
+  };
+  const variables = [
+    `-var=endpoint=${options.emulator.endpoint}`,
+    `-var=bucket=${workloadBucket}`,
+    `-var=marker_path=${markerPath}`,
+    "-var=delay_seconds=10",
+  ];
+  let initialized = false;
+  try {
+    await run(command, ["init", "-input=false", `-backend-config=${backend}`], {
+      cwd: engineRoot,
+      env,
+      timeout: 240_000,
+    });
+    initialized = true;
+    const apply = run(
+      command,
+      [
+        "apply",
+        "-auto-approve",
+        "-input=false",
+        "-parallelism=1",
+        ...variables,
+      ],
+      { cwd: engineRoot, env, timeout: 240_000 },
+    );
+    await waitForPath(markerPath);
+    const atBoundary = {
+      invocations: await harness.invocationCalls(),
+      oidc: harness.oidcCalls,
+      sts: { ...harness.stsCalls },
+    };
+    expect(atBoundary.invocations.state).toBeGreaterThan(0);
+    expect(atBoundary.invocations.deployment).toBeGreaterThan(0);
+    expect(atBoundary.sts.state).toBeGreaterThan(0);
+    expect(atBoundary.sts.deployment).toBeGreaterThan(0);
+
+    await apply;
+    const afterApply = await harness.invocationCalls();
+    expect(afterApply.state).toBeGreaterThan(atBoundary.invocations.state);
+    expect(afterApply.deployment).toBeGreaterThan(
+      atBoundary.invocations.deployment,
+    );
+    expect(harness.stsCalls.state).toBeGreaterThan(atBoundary.sts.state);
+    expect(harness.stsCalls.deployment).toBeGreaterThan(
+      atBoundary.sts.deployment,
+    );
+    expect(harness.oidcCalls).toBeGreaterThanOrEqual(atBoundary.oidc + 2);
+
+    const objects = await bootstrapList(
+      options.emulator.endpoint,
+      harness,
+      workloadBucket,
+    );
+    expect(objects).toEqual(
+      expect.arrayContaining(["renewal/before.txt", "renewal/after.txt"]),
+    );
+  } finally {
+    if (initialized) {
+      await run(
+        command,
+        ["destroy", "-auto-approve", "-input=false", ...variables],
+        { cwd: engineRoot, env, timeout: 240_000 },
+      ).catch(() => undefined);
+    }
+    const cleanup = new S3Client({
+      endpoint: options.emulator.endpoint,
+      region,
+      forcePathStyle: true,
+      credentials: provider(harness, "identity"),
+    });
+    for (const bucket of [workloadBucket, stateBucket]) {
+      const objects = await cleanup
+        .send(new ListObjectsV2Command({ Bucket: bucket }))
+        .catch(() => undefined);
+      for (const item of objects?.Contents ?? []) {
+        if (item.Key) {
+          await cleanup.send(
+            new DeleteObjectCommand({ Bucket: bucket, Key: item.Key }),
+          );
+        }
+      }
+      await cleanup
+        .send(new DeleteBucketCommand({ Bucket: bucket }))
+        .catch(() => undefined);
+    }
+    cleanup.destroy();
+    await harness.close();
+  }
+}
+
+async function bootstrapList(
+  endpoint: string,
+  harness: IdentityHarness,
+  bucket: string,
+): Promise<string[]> {
+  const client = new S3Client({
+    endpoint,
+    region,
+    forcePathStyle: true,
+    credentials: provider(harness, "identity"),
+  });
+  try {
+    const output = await client.send(
+      new ListObjectsV2Command({ Bucket: bucket }),
+    );
+    return (output.Contents ?? []).flatMap((item) =>
+      item.Key ? [item.Key] : [],
+    );
+  } finally {
+    client.destroy();
+  }
+}
+
 async function assertPrivateTree(root: string) {
   expect((await stat(root)).mode & 0o077).toBe(0);
 }
@@ -495,6 +675,7 @@ test("real consumers use isolated profiles, shared cache, and natural renewal", 
     ) {
       for (const engine of ["terraform", "opentofu"] as const) {
         await iacProbe({ engine, harness, emulator, root, suffix });
+        await iacNaturalRenewalProbe({ engine, emulator, root, suffix });
       }
     }
   } catch (error) {

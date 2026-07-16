@@ -20,7 +20,7 @@ Coverage includes:
 - concurrent independent credential-process executions sharing one cache generation;
 - profile/cache identity isolation and no immediate refresh storm;
 - a long-lived SDK client naturally crossing a four-second synthetic expiration, with credential-process/OIDC/STS counters advancing;
-- Terraform and OpenTofu S3 backend (`state`) independent from provider (`deployment`), apply/read/update/destroy, distinct cache identities, and natural renewal elsewhere in the same suite;
+- Terraform and OpenTofu S3 backend (`state`) independent from provider (`deployment`), apply/read/update/destroy, distinct cache identities, and a single `apply` per engine with provider operations before and after an eight-second synthetic credential expiration, plus post-boundary refresh counters for both the provider and backend;
 - CloudFormation (`cloudformation`) create/describe/update/delete with SQS effects independently read using another profile;
 - native Ubuntu 24.04 x64 and arm64;
 - one `jobs.<job>.container` path with inherited controlled OIDC environment, absolute helper paths, process JSON, S3 signing, and cleanup;
