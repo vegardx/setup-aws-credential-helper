@@ -8,6 +8,21 @@ A Linux GitHub Action that configures renewable AWS credentials through the stan
 
 The action does not export AWS access keys. Instead, later processes discover a generated shared AWS config and invoke the bundled helper as credentials expire.
 
+## Why use this instead of exported credentials?
+
+[`aws-actions/configure-aws-credentials`](https://github.com/aws-actions/configure-aws-credentials) is the established choice for most jobs. In its normal OIDC mode it assumes the role during its action step and exports one temporary `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` set to later steps. That is simple and appropriate when the requested STS session comfortably outlives the job's AWS work.
+
+This action targets jobs where a fixed credential set may expire while a long-running consumer is still working, or where separate named profiles are useful for consumers such as a Terraform/OpenTofu S3 backend and AWS provider. It configures a renewable provider instead of exporting credentials:
+
+1. a compatible AWS client invokes the profile's standard `credential_process`;
+2. the helper returns temporary STS credentials with their `Expiration`;
+3. when the client's credential provider decides those credentials need replacement, it can invoke the process again;
+4. the helper makes an on-demand request to GitHub's OIDC service and exchanges the returned JWT for a new STS session.
+
+Renewal is **client-driven**, not a background timer and not an unconditional guarantee that every command can survive expiration. It requires a client that supports `credential_process`, honors `Expiration`, and continues using that refreshable provider during the operation. It also requires the job to remain active with usable `id-token: write` request capability and network access to GitHub and AWS STS. Static AWS credential environment variables or directly supplied credentials take precedence in many clients and would bypass this mechanism; setup rejects common competing variables for that reason.
+
+For the versions in this repository's compatibility suite, renewal is exercised by a long-lived AWS SDK v3 client and by one Terraform/OpenTofu `apply` process that makes provider calls on both sides of a synthetic expiration boundary. See [What the tests prove](#what-the-tests-prove) and the [live-test checklist](docs/live-test-checklist.md).
+
 ## Quick start
 
 Grant OIDC permission to only the job that needs AWS access. Run setup once near the start of every such job, before any AWS consumer:
@@ -257,11 +272,23 @@ Terraform/OpenTofu plan files can contain sensitive values and enough configurat
 
 See [SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
-## Offline real-consumer assurance
+## What the tests prove
 
-Fork-safe CI runs Moto with controlled loopback OIDC/STS mocks and no secrets or `id-token: write`. On native Ubuntu 24.04 x64 and arm64 it executes the bundled helper through AWS SDK JS v3, AWS CLI, Terraform 1.15.8, OpenTofu 1.12.4, and AWS provider 6.54.0. It covers default/explicit profile selection; independent `state` backend and `deployment` provider resolution; S3 object lifecycle; CloudFormation-managed SQS create/describe/update/delete effects; cross-process cache single flight and profile isolation; and natural short synthetic expiration with credential-process, OIDC, and STS generation counters. A separate same-job Linux container lane covers inherited mock runtime variables, absolute paths, helper protocol output, service signing, and cleanup. Ubuntu 26.04 x64/arm64 runs the same suite only as public-preview canaries.
+The required, fork-safe CI uses controlled loopback OIDC/STS services and Moto. It uses no repository secrets, live AWS credentials, or `id-token: write`.
 
-This evidence does **not** exercise real GitHub OIDC bearer longevity, AWS JWT signature validation, IAM OIDC providers or trust conditions, role `MaxSessionDuration`, permissions boundaries, or AWS rejection of truly expired credentials. Moto accepts synthetic credentials and does not reproduce those security decisions. Those checks remain in the deferred owner-run live checklist; no live AWS bootstrap, LocalStack infrastructure, or janitor is part of implemented CI.
+| Layer | What runs | What it establishes |
+| --- | --- | --- |
+| Unit and mocked subprocess tests | Vitest on cache, config, input, OIDC, STS, setup/helper/cleanup lifecycle, and the bundled helper process | Validation, process JSON shape, early-refresh boundaries, cache identity and permissions, single-flight locking, retry/failure behavior, and bundle isolation |
+| Emulator smoke | AWS SDK JS v3, AWS CLI, and CloudFormation/SQS through Moto on Ubuntu 24.04 x64 and arm64 | Real signed requests through distinct `credential_process` profiles, S3 lifecycle, CloudFormation create/update/delete effects, negative controls, cache reuse, and container cleanup |
+| Offline consumer acceptance | AWS SDK JS v3, AWS CLI, Terraform 1.15.8, OpenTofu 1.12.4, and AWS provider 6.54.0 on Ubuntu 24.04 x64 and arm64 | Default/explicit profiles; separate `state` backend and `deployment` provider resolution; S3 apply/read/update/destroy; cross-process cache single flight and profile isolation |
+| SDK renewal probe | One long-lived AWS SDK v3 `S3Client` with a four-second synthetic STS session | The same client makes calls before and after the refresh boundary; credential-process, OIDC, and STS counters all advance; the renewed credential generation is then reused without an immediate refresh storm |
+| Terraform/OpenTofu renewal probe | One `apply` process per engine with an eight-second synthetic STS session, a provider operation, a controlled ten-second pause, and a dependent provider operation | The same run completes provider work on both sides of expiration; its `deployment` provider and `state` backend credential-process/STS counters advance after the pre-expiration marker |
+| Job-container lane | Node 24 job container plus a Moto service container | Inherited controlled OIDC variables, absolute helper/config paths, helper protocol output, SDK signing, and cleanup when setup and consumer share one job container |
+| Ubuntu 26 canary | The same offline suite on x64 and arm64 public-preview runners | Early compatibility signal only; these jobs are intentionally not required |
+
+The Terraform/OpenTofu renewal probe establishes request-driven provider refresh for the pinned engine/provider versions and the helper protocol. It does not prove that credentials are renewed in the background, that an in-flight request can replace credentials after it has been signed, or that every Terraform operation is immune to expiry-related failure. Renewal still depends on the selected consumer asking for credentials again and on the helper successfully reaching GitHub OIDC and AWS STS.
+
+The offline suite also does not validate real GitHub OIDC service longevity, AWS JWT signature validation, IAM OIDC provider/trust conditions, role `MaxSessionDuration`, permissions boundaries, AWS rejection of actually expired credentials, or service availability/rate limits. Those checks remain in the deferred owner-run [live-test checklist](docs/live-test-checklist.md).
 
 ## Limits
 
