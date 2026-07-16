@@ -240,6 +240,7 @@ export function createDockerAdapter(
         const message = error instanceof Error ? error.message : String(error);
         throw new Error(
           `Could not start ${options.name}: ${message}${diagnostics ? `\n${diagnostics}` : ""}`,
+          { cause: error },
         );
       }
     },
