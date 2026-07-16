@@ -4,24 +4,55 @@
 [![Workflow security](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/workflow-security.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/workflow-security.yml)
 [![Ubuntu 26 compatibility](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ubuntu-26-compatibility.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ubuntu-26-compatibility.yml)
 
-A Linux GitHub Action that configures renewable AWS credentials through the standard AWS [`credential_process`](https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html) interface. It creates private, job-local AWS named profiles and exchanges fresh GitHub Actions OIDC tokens for temporary AWS STS credentials when a compatible AWS client asks for credentials.
+**Renewable, multi-profile AWS credentials for long-running GitHub Actions jobs.**
 
-The action does not export AWS access keys. Instead, later processes discover a generated shared AWS config and invoke the bundled helper as credentials expire.
+This Linux action configures standard AWS [`credential_process`](https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html) profiles backed by GitHub Actions OIDC. Compatible AWS clients receive temporary STS credentials with an expiration and can invoke the helper again when they need replacements—without exporting AWS access keys into later steps.
 
-## Why use this instead of exported credentials?
+## Why this exists
 
-[`aws-actions/configure-aws-credentials`](https://github.com/aws-actions/configure-aws-credentials) is the established choice for most jobs. In its normal OIDC mode it assumes the role during its action step and exports one temporary `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` set to later steps. That is simple and appropriate when the requested STS session comfortably outlives the job's AWS work.
+[`aws-actions/configure-aws-credentials`](https://github.com/aws-actions/configure-aws-credentials) is the established default for most jobs. In its normal OIDC mode it assumes a role during the action step and exports one temporary `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` set. That is simple and appropriate when one session comfortably outlives the job's AWS work.
 
-This action targets jobs where a fixed credential set may expire while a long-running consumer is still working, or where separate named profiles are useful for consumers such as a Terraform/OpenTofu S3 backend and AWS provider. It configures a renewable provider instead of exporting credentials:
+A fixed credential set becomes a liability when a deployment can outlive that session. Increasing the role duration only moves the boundary and requires broader credential lifetime. This action instead gives compatible consumers a renewable credential source:
 
-1. a compatible AWS client invokes the profile's standard `credential_process`;
-2. the helper returns temporary STS credentials with their `Expiration`;
-3. when the client's credential provider decides those credentials need replacement, it can invoke the process again;
-4. the helper makes an on-demand request to GitHub's OIDC service and exchanges the returned JWT for a new STS session.
+```text
+setup once
+   │
+   └─ generated AWS profiles (no exported access keys)
+          │
+          ├─ Terraform/OpenTofu S3 backend ── profile: state
+          ├─ AWS provider / AWS CLI ───────── profile: deployment
+          └─ other AWS SDK consumers ─────── profile: observability, dns, ...
+                        │
+                        └─ credential_process
+                              ├─ return valid cached STS credentials, or
+                              └─ request OIDC on demand → exchange with STS
+```
 
-Renewal is **client-driven**, not a background timer and not an unconditional guarantee that every command can survive expiration. It requires a client that supports `credential_process`, honors `Expiration`, and continues using that refreshable provider during the operation. It also requires the job to remain active with usable `id-token: write` request capability and network access to GitHub and AWS STS. Static AWS credential environment variables or directly supplied credentials take precedence in many clients and would bypass this mechanism; setup rejects common competing variables for that reason.
+### What you gain
 
-For the versions in this repository's compatibility suite, renewal is exercised by a long-lived AWS SDK v3 client and by one Terraform/OpenTofu `apply` process that makes provider calls on both sides of a synthetic expiration boundary. See [What the tests prove](#what-the-tests-prove) and the [live-test checklist](docs/live-test-checklist.md).
+- **Renewal across long operations.** Tested Terraform, OpenTofu, and AWS SDK clients reinvoke the helper across synthetic credential expiration instead of being permanently tied to the credential set created at setup time.
+- **Shorter sessions without a brittle deadline.** You can request a shorter supported STS duration and let compatible consumers replace credentials as needed, rather than making every credential live for the maximum possible job duration.
+- **Multiple least-privilege identities in one job.** Give state access, deployment, DNS, or other concerns separate roles and select them using ordinary AWS profile configuration.
+- **Correct backend/provider separation.** Terraform/OpenTofu backends and providers are independent AWS consumers; each can use its own named profile and refresh lifecycle.
+- **No exported AWS access-key variables.** Later steps receive profile/config selection, while credentials are produced only when a consumer invokes `credential_process`.
+- **Shared refresh coordination.** Separate CLI, backend, provider, and SDK processes reuse a private job-local cache so concurrent demand normally produces one STS exchange per identity.
+
+### Exported once vs renewable on demand
+
+| | One-time exported credentials | This action |
+| --- | --- | --- |
+| Credential source seen by later tools | Fixed environment variables or static profile values | Standard named profile with `credential_process` |
+| When STS credentials are obtained | During the setup action | On first demand and again when the selected client needs replacements |
+| Long operation crosses initial expiry | The original values cannot replace themselves | Compatible clients can reinvoke the helper and continue with a new STS session |
+| Multiple roles | Usually repeat setup and manage precedence carefully | One generated config with isolated named profiles |
+| AWS access keys exported to later steps | Normally yes | No |
+| Terraform S3 backend vs provider identity | Must be wired separately | Separate profiles are a first-class use case |
+
+### The precise promise
+
+Renewal is **request-driven**, not a background daemon. It requires a client that supports `credential_process`, honors `Expiration`, and continues using that provider. A later refresh also requires the job to remain active with usable `id-token: write` request capability and network access to GitHub and AWS STS. Static AWS credential environment variables or directly supplied credentials can take precedence and bypass process credentials; setup rejects common competing variables for that reason.
+
+For the versions in this repository's compatibility suite, renewal is exercised by a long-lived AWS SDK v3 client and by one Terraform/OpenTofu `apply` process that makes provider and backend calls across a synthetic expiration boundary. This substantially reduces expiry risk; it does not guarantee that every in-flight request or every possible client survives every failure. See [Credential renewal and cache](#credential-renewal-and-cache), [What the tests prove](#what-the-tests-prove), and the [live-test checklist](docs/live-test-checklist.md).
 
 ## Quick start
 
@@ -219,6 +250,19 @@ For OpenTofu, use the same backend configuration with `tofu init` and `tofu plan
 ```
 
 Do not commit, cache, or upload `backend.generated.hcl`; its absolute path is valid only for this job. Although the generated shared config does not contain static access keys, it points to job-local private metadata and the action checkout.
+
+### Planned Terraform/OpenTofu companion
+
+This action intentionally remains a credential provider rather than a Terraform runner. A separate companion action is planned to compose with it: consume the generated profiles, create private backend configuration correctly, and run reviewed `plan`, `apply`, or `destroy` operations for Terraform or OpenTofu. Keeping execution separate lets this action remain useful to the AWS CLI, SDKs, and existing IaC workflows while the companion can own IaC-specific lifecycle and plan-safety decisions.
+
+The intended boundary is:
+
+- this action owns GitHub OIDC, STS exchange, renewable profiles, and shared credential caching;
+- the companion owns engine invocation, working-directory/backend wiring, command arguments, and outputs;
+- backend credentials select one generated profile, while provider and alias profile selection remains explicit in reviewed Terraform/OpenTofu configuration;
+- plans, generated backend files, and local state remain sensitive job-local material unless a workflow deliberately protects and transfers them.
+
+This is direction, not a released interface. See [Companion action design](docs/companion-action.md) for the initial product brief.
 
 ## Credential renewal and cache
 
