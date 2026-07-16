@@ -81,6 +81,12 @@ The cache is designed for cooperating processes. It does not protect credentials
 
 Cleanup does not revoke STS sessions, retract previously exported environment variables, clear consumer process memory, or guarantee erasure when the runner is forcefully terminated.
 
+## Offline integration boundary
+
+The retained Moto suite runs real production-shaped process boundaries with only the compile-time loopback test helper. It covers AWS SDK JS v3, AWS CLI, pinned Terraform/OpenTofu/provider-v6, distinct `identity`, `state`, `deployment`, and `cloudformation` profiles, S3 backend/provider separation, S3 lifecycle, CloudFormation-backed SQS effects, cross-process cache behavior, natural synthetic expiration/reinvocation counters, native Ubuntu 24.04 x64/arm64, and a same-job Linux container. The production bundle remains unable to use local endpoints.
+
+Moto and the controlled identity mocks deliberately do not prove real GitHub OIDC bearer longevity, JWT signature validation by AWS, IAM OIDC provider/trust conditions, role `MaxSessionDuration`, permissions boundaries, or rejection of actually expired STS credentials. Ubuntu 26.04 x64/arm64 is public-preview canary coverage. Live AWS, LocalStack bootstrap, and cleanup/janitor infrastructure remain outside implemented automation.
+
 ## Build and test boundaries
 
 The three production bundles are committed:

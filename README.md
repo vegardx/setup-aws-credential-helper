@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ci.yml)
 [![Workflow security](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/workflow-security.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/workflow-security.yml)
+[![Ubuntu 26 compatibility](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ubuntu-26-compatibility.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ubuntu-26-compatibility.yml)
 
 A Linux GitHub Action that configures renewable AWS credentials through the standard AWS [`credential_process`](https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html) interface. It creates private, job-local AWS named profiles and exchanges fresh GitHub Actions OIDC tokens for temporary AWS STS credentials when a compatible AWS client asks for credentials.
 
@@ -256,19 +257,25 @@ Terraform/OpenTofu plan files can contain sensitive values and enough configurat
 
 See [SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
+## Offline real-consumer assurance
+
+Fork-safe CI runs Moto with controlled loopback OIDC/STS mocks and no secrets or `id-token: write`. On native Ubuntu 24.04 x64 and arm64 it executes the bundled helper through AWS SDK JS v3, AWS CLI, Terraform 1.15.8, OpenTofu 1.12.4, and AWS provider 6.54.0. It covers default/explicit profile selection; independent `state` backend and `deployment` provider resolution; S3 object lifecycle; CloudFormation-managed SQS create/describe/update/delete effects; cross-process cache single flight and profile isolation; and natural short synthetic expiration with credential-process, OIDC, and STS generation counters. A separate same-job Linux container lane covers inherited mock runtime variables, absolute paths, helper protocol output, service signing, and cleanup. Ubuntu 26.04 x64/arm64 runs the same suite only as public-preview canaries.
+
+This evidence does **not** exercise real GitHub OIDC bearer longevity, AWS JWT signature validation, IAM OIDC providers or trust conditions, role `MaxSessionDuration`, permissions boundaries, or AWS rejection of truly expired credentials. Moto accepts synthetic credentials and does not reproduce those security decisions. Those checks remain in the deferred owner-run live checklist; no live AWS bootstrap, LocalStack infrastructure, or janitor is part of implemented CI.
+
 ## Limits
 
 Version 1 intentionally supports:
 
-- Linux runners only;
-- later steps in the same non-container job;
+- Linux runners on Ubuntu 24.04 x64 and arm64;
+- later steps in the same non-container job, plus a GitHub Actions Linux job container where setup and consumers share that job container;
 - trusted workflow code;
 - consumers that support AWS shared config, named profiles, and `credential_process` expiration.
 
 Operational constraints:
 
 - Run setup in every job that needs credentials. Generated configuration, metadata, cache paths, the captured Node executable, and the action checkout path are job-local and must not be transferred between jobs or runners.
-- Container jobs and service/container boundary behavior are not guaranteed. Windows and macOS are not supported in v1.
+- The tested job-container case keeps setup, inherited OIDC runtime variables, absolute Node/helper/metadata/cache paths, and the consumer in one `jobs.<job>.container`. Separately launched containers, service or sibling containers, Kubernetes pods, remote containers, and cross-job transfer are not supported or implied. Windows and macOS remain unsupported.
 - The action checkout must remain present at its original absolute path, and the captured action Node runtime must remain runnable for later helper invocations. Do not delete or relocate the action directory.
 - Different profiles can use different regions. The action intentionally does not export a global AWS region; explicitly set a consumer-level region only when you mean to override profile behavior.
 - Setup fails when static credentials, standard web-identity variables, or container credential endpoint variables are already present. This avoids silently selecting a credential source that bypasses the generated process profile.

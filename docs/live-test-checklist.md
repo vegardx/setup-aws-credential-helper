@@ -1,6 +1,6 @@
 # Deferred owner-run live-test checklist
 
-This checklist is intentionally **manual and deferred**. It validates behavior that mocked CI cannot establish, especially repeated GitHub OIDC requests during a long-running job and interoperability with real AWS consumers. Do not turn it into a repository CI workflow in this milestone.
+This checklist is intentionally **manual and deferred**. Offline CI now establishes process execution, profile selection, short synthetic expiration/reinvocation, S3 backend/provider separation, S3 and CloudFormation/SQS API plumbing, Ubuntu 24.04 x64/arm64, and a same-job Linux container. This checklist covers only what that suite cannot establish: real GitHub OIDC bearer longevity and JWT issuance, AWS signature/provider/trust evaluation, IAM permissions and boundaries, role `MaxSessionDuration`, real expired-credential rejection, and compatibility with live AWS. Do not turn it into a repository CI workflow in this milestone.
 
 Use a private, temporary test workflow or branch under the repository owner's control. Do not commit real account IDs, role ARNs, bucket names, credentials, tokens, generated configuration, or test plans to this repository. Remove temporary cloud and workflow resources after testing.
 
@@ -139,4 +139,4 @@ GitHub-hosted runner destruction is the final isolation control; absence cannot 
 - [ ] Destroy the ephemeral self-hosted runner, if used.
 - [ ] Treat any accidental credential or token disclosure as an incident: stop the job, remove public logs/artifacts, revoke or restrict affected access where possible, and preserve only sanitized evidence.
 
-A completed checklist provides compatibility evidence for the tested versions and date. It does not expand the documented Linux, same-job, trusted-code, non-container support boundary.
+A completed checklist provides compatibility evidence for the tested versions and date. It does not expand the documented Linux same-job support boundary beyond the tested same-job-container case; separately launched/service/sibling/Kubernetes/remote containers and cross-job transfer remain unsupported.
