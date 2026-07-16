@@ -63,9 +63,9 @@ For released use, prefer an immutable full commit SHA. The floating `@v1` refere
 | `roleArn` | yes | IAM role ARN in a supported AWS partition |
 | `region` | yes | Regional STS region compatible with the ARN partition |
 | `audience` | no | Defaults to `sts.amazonaws.com`; 1–255 characters, beginning with an alphanumeric character and otherwise using `A-Za-z0-9._:/-` |
-| `roleDurationSeconds` | no | Defaults to `3600`; integer from `900` through `43200` |
+| `roleDurationSeconds` | no | Defaults to `3600`; integer from `1` through `43200` |
 
-The requested duration is not automatically reduced. The role's IAM `MaxSessionDuration` remains authoritative, so STS rejects a request that exceeds it.
+The requested duration is not automatically reduced or clamped. Values below `900` are intended only for fast offline emulator tests: setup emits a warning because AWS STS documents a 900-second minimum and real AWS is expected to reject them. The role's IAM `MaxSessionDuration` remains authoritative, so STS also rejects a request that exceeds it.
 
 `default-profile` is the profile exported as `AWS_PROFILE`.
 
@@ -211,7 +211,7 @@ Compatible AWS consumers execute `credential_process` when they need credentials
 AWS CLI, Terraform/OpenTofu core and its S3 backend, provider plugins, and other SDK processes have separate in-process caches. To avoid redundant exchanges, helper invocations share temporary STS credentials in the generated private job directory:
 
 - every effective profile and job identity has an isolated, hashed cache key;
-- credentials refresh early: approximately 10% of the requested duration, bounded between 60 seconds and 5 minutes before expiration;
+- credentials refresh early: approximately 10% of the requested duration; sessions of at least 900 seconds use a 60-second to 5-minute bound, while shorter offline-test sessions use a proportional 1-second to 30-second bound;
 - concurrent invocations for one identity coordinate through a bounded per-key lock and normally perform one OIDC/STS exchange;
 - a waiter times out after about 30 seconds rather than bypassing a live lock and risking an unsafe duplicate refresh;
 - cache records contain temporary STS credentials and their full canonical identity, but never OIDC JWTs or request bearer tokens.
@@ -272,7 +272,7 @@ Operational constraints:
 - The action checkout must remain present at its original absolute path, and the captured action Node runtime must remain runnable for later helper invocations. Do not delete or relocate the action directory.
 - Different profiles can use different regions. The action intentionally does not export a global AWS region; explicitly set a consumer-level region only when you mean to override profile behavior.
 - Setup fails when static credentials, standard web-identity variables, or container credential endpoint variables are already present. This avoids silently selecting a credential source that bypasses the generated process profile.
-- Requested STS durations are 900–43200 seconds. AWS IAM role `MaxSessionDuration` and STS policy limits still apply.
+- Requested STS durations are 1–43200 seconds and are forwarded unchanged. AWS STS documents a 900-second minimum, so real AWS is expected to reject values below 900; those values exist for offline emulator tests. AWS IAM role `MaxSessionDuration` and other STS policy limits still apply.
 - Cache coordination protects cooperating processes, not malicious same-user code. A lock timeout fails the helper instead of performing an uncoordinated exchange.
 - OIDC requests and STS exchanges require network access at refresh time. GitHub's repeated full-job OIDC availability and service rate limits are runtime behavior, not a guarantee made by this action.
 - Cleanup does not revoke credentials and may not run after forceful runner termination.

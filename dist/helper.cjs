@@ -481,11 +481,11 @@ var require_dist_cjs = __commonJS({
 });
 
 // node_modules/@smithy/core/dist-es/submodules/transport/getSmithyContext.js
-var import_types2, getSmithyContext;
+var import_types3, getSmithyContext;
 var init_getSmithyContext = __esm({
   "node_modules/@smithy/core/dist-es/submodules/transport/getSmithyContext.js"() {
-    import_types2 = __toESM(require_dist_cjs());
-    getSmithyContext = (context) => context[import_types2.SMITHY_CONTEXT_KEY] || (context[import_types2.SMITHY_CONTEXT_KEY] = {});
+    import_types3 = __toESM(require_dist_cjs());
+    getSmithyContext = (context) => context[import_types3.SMITHY_CONTEXT_KEY] || (context[import_types3.SMITHY_CONTEXT_KEY] = {});
   }
 });
 
@@ -1872,10 +1872,10 @@ var init_schemaLogFilter = __esm({
 });
 
 // node_modules/@smithy/core/dist-es/submodules/client/smithy-client/command.js
-var import_types3, Command, ClassBuilder;
+var import_types4, Command, ClassBuilder;
 var init_command = __esm({
   "node_modules/@smithy/core/dist-es/submodules/client/smithy-client/command.js"() {
-    import_types3 = __toESM(require_dist_cjs());
+    import_types4 = __toESM(require_dist_cjs());
     init_MiddlewareStack();
     init_schemaLogFilter();
     Command = class {
@@ -1896,7 +1896,7 @@ var init_command = __esm({
           commandName,
           inputFilterSensitiveLog,
           outputFilterSensitiveLog,
-          [import_types3.SMITHY_CONTEXT_KEY]: {
+          [import_types4.SMITHY_CONTEXT_KEY]: {
             commandInstance: this,
             ...smithyContext
           },
@@ -2198,15 +2198,15 @@ var init_emitWarningIfUnsupportedVersion2 = __esm({
 });
 
 // node_modules/@smithy/core/dist-es/submodules/client/smithy-client/extensions/checksum.js
-var import_types4, knownAlgorithms, getChecksumConfiguration, resolveChecksumRuntimeConfig;
+var import_types5, knownAlgorithms, getChecksumConfiguration, resolveChecksumRuntimeConfig;
 var init_checksum = __esm({
   "node_modules/@smithy/core/dist-es/submodules/client/smithy-client/extensions/checksum.js"() {
-    import_types4 = __toESM(require_dist_cjs());
-    knownAlgorithms = Object.values(import_types4.AlgorithmId);
+    import_types5 = __toESM(require_dist_cjs());
+    knownAlgorithms = Object.values(import_types5.AlgorithmId);
     getChecksumConfiguration = (runtimeConfig) => {
       const checksumAlgorithms = [];
-      for (const id in import_types4.AlgorithmId) {
-        const algorithmId = import_types4.AlgorithmId[id];
+      for (const id in import_types5.AlgorithmId) {
+        const algorithmId = import_types5.AlgorithmId[id];
         if (runtimeConfig[algorithmId] === void 0) {
           continue;
         }
@@ -2504,7 +2504,7 @@ var init_client_command_builder = __esm({
 // node_modules/@smithy/core/dist-es/submodules/client/index.js
 var client_exports = {};
 __export(client_exports, {
-  AlgorithmId: () => import_types4.AlgorithmId,
+  AlgorithmId: () => import_types5.AlgorithmId,
   Client: () => Client,
   Command: () => Command,
   NoOpLogger: () => NoOpLogger,
@@ -3851,20 +3851,20 @@ var init_constants2 = __esm({
 });
 
 // node_modules/@smithy/core/dist-es/submodules/config/shared-ini-file-loader/getConfigData.js
-var import_types5, getConfigData;
+var import_types6, getConfigData;
 var init_getConfigData = __esm({
   "node_modules/@smithy/core/dist-es/submodules/config/shared-ini-file-loader/getConfigData.js"() {
-    import_types5 = __toESM(require_dist_cjs());
+    import_types6 = __toESM(require_dist_cjs());
     init_constants2();
     getConfigData = (data2) => Object.entries(data2).filter(([key]) => {
       const indexOfSeparator = key.indexOf(CONFIG_PREFIX_SEPARATOR);
       if (indexOfSeparator === -1) {
         return false;
       }
-      return Object.values(import_types5.IniSectionType).includes(key.substring(0, indexOfSeparator));
+      return Object.values(import_types6.IniSectionType).includes(key.substring(0, indexOfSeparator));
     }).reduce((acc, [key, value]) => {
       const indexOfSeparator = key.indexOf(CONFIG_PREFIX_SEPARATOR);
-      const updatedKey = key.substring(0, indexOfSeparator) === import_types5.IniSectionType.PROFILE ? key.substring(indexOfSeparator + 1) : key;
+      const updatedKey = key.substring(0, indexOfSeparator) === import_types6.IniSectionType.PROFILE ? key.substring(indexOfSeparator + 1) : key;
       acc[updatedKey] = value;
       return acc;
     }, {
@@ -3896,10 +3896,10 @@ var init_getCredentialsFilepath = __esm({
 });
 
 // node_modules/@smithy/core/dist-es/submodules/config/shared-ini-file-loader/parseIni.js
-var import_types6, prefixKeyRegex, profileNameBlockList, parseIni;
+var import_types7, prefixKeyRegex, profileNameBlockList, parseIni;
 var init_parseIni = __esm({
   "node_modules/@smithy/core/dist-es/submodules/config/shared-ini-file-loader/parseIni.js"() {
-    import_types6 = __toESM(require_dist_cjs());
+    import_types7 = __toESM(require_dist_cjs());
     init_constants2();
     prefixKeyRegex = /^([\w-]+)\s(["'])?([\w-@+.%:/]+)\2$/;
     profileNameBlockList = ["__proto__", "profile __proto__"];
@@ -3917,7 +3917,7 @@ var init_parseIni = __esm({
           const matches = prefixKeyRegex.exec(sectionName);
           if (matches) {
             const [, prefix, , name] = matches;
-            if (Object.values(import_types6.IniSectionType).includes(prefix)) {
+            if (Object.values(import_types7.IniSectionType).includes(prefix)) {
               currentSection = [prefix, name].join(CONFIG_PREFIX_SEPARATOR);
             }
           } else {
@@ -4012,12 +4012,12 @@ var init_loadSharedConfigFiles = __esm({
 });
 
 // node_modules/@smithy/core/dist-es/submodules/config/shared-ini-file-loader/getSsoSessionData.js
-var import_types7, getSsoSessionData;
+var import_types8, getSsoSessionData;
 var init_getSsoSessionData = __esm({
   "node_modules/@smithy/core/dist-es/submodules/config/shared-ini-file-loader/getSsoSessionData.js"() {
-    import_types7 = __toESM(require_dist_cjs());
+    import_types8 = __toESM(require_dist_cjs());
     init_loadSharedConfigFiles();
-    getSsoSessionData = (data2) => Object.entries(data2).filter(([key]) => key.startsWith(import_types7.IniSectionType.SSO_SESSION + CONFIG_PREFIX_SEPARATOR)).reduce((acc, [key, value]) => ({ ...acc, [key.substring(key.indexOf(CONFIG_PREFIX_SEPARATOR) + 1)]: value }), {});
+    getSsoSessionData = (data2) => Object.entries(data2).filter(([key]) => key.startsWith(import_types8.IniSectionType.SSO_SESSION + CONFIG_PREFIX_SEPARATOR)).reduce((acc, [key, value]) => ({ ...acc, [key.substring(key.indexOf(CONFIG_PREFIX_SEPARATOR) + 1)]: value }), {});
   }
 });
 
@@ -5305,14 +5305,14 @@ var init_isIpAddress = __esm({
 });
 
 // node_modules/@smithy/core/dist-es/submodules/endpoints/util-endpoints/lib/parseURL.js
-var import_types13, DEFAULT_PORTS, parseURL;
+var import_types14, DEFAULT_PORTS, parseURL;
 var init_parseURL = __esm({
   "node_modules/@smithy/core/dist-es/submodules/endpoints/util-endpoints/lib/parseURL.js"() {
-    import_types13 = __toESM(require_dist_cjs());
+    import_types14 = __toESM(require_dist_cjs());
     init_isIpAddress();
     DEFAULT_PORTS = {
-      [import_types13.EndpointURLScheme.HTTP]: 80,
-      [import_types13.EndpointURLScheme.HTTPS]: 443
+      [import_types14.EndpointURLScheme.HTTP]: 80,
+      [import_types14.EndpointURLScheme.HTTPS]: 443
     };
     parseURL = (value) => {
       const whatwgURL = (() => {
@@ -5341,7 +5341,7 @@ var init_parseURL = __esm({
         return null;
       }
       const scheme = protocol.slice(0, -1);
-      if (!Object.values(import_types13.EndpointURLScheme).includes(scheme)) {
+      if (!Object.values(import_types14.EndpointURLScheme).includes(scheme)) {
         return null;
       }
       const isIp = isIpAddress(hostname);
@@ -9617,15 +9617,15 @@ var init_HttpInterceptingShapeSerializer = __esm({
 });
 
 // node_modules/@smithy/core/dist-es/submodules/protocols/protocol-http/Field.js
-var import_types24, Field;
+var import_types25, Field;
 var init_Field = __esm({
   "node_modules/@smithy/core/dist-es/submodules/protocols/protocol-http/Field.js"() {
-    import_types24 = __toESM(require_dist_cjs());
+    import_types25 = __toESM(require_dist_cjs());
     Field = class {
       name;
       kind;
       values;
-      constructor({ name, kind = import_types24.FieldPosition.HEADER, values = [] }) {
+      constructor({ name, kind = import_types25.FieldPosition.HEADER, values = [] }) {
         this.name = name;
         this.kind = kind;
         this.values = values;
@@ -11481,11 +11481,11 @@ var init_DefaultIdentityProviderConfig = __esm({
 });
 
 // node_modules/@smithy/core/dist-es/legacy-root-exports/util-identity-and-auth/httpAuthSchemes/httpApiKeyAuth.js
-var import_types25, HttpApiKeyAuthSigner;
+var import_types26, HttpApiKeyAuthSigner;
 var init_httpApiKeyAuth = __esm({
   "node_modules/@smithy/core/dist-es/legacy-root-exports/util-identity-and-auth/httpAuthSchemes/httpApiKeyAuth.js"() {
     init_protocols();
-    import_types25 = __toESM(require_dist_cjs());
+    import_types26 = __toESM(require_dist_cjs());
     HttpApiKeyAuthSigner = class {
       async sign(httpRequest, identity, signingProperties) {
         if (!signingProperties) {
@@ -11501,9 +11501,9 @@ var init_httpApiKeyAuth = __esm({
           throw new Error("request could not be signed with `apiKey` since the `apiKey` is not defined");
         }
         const clonedRequest = HttpRequest.clone(httpRequest);
-        if (signingProperties.in === import_types25.HttpApiKeyAuthLocation.QUERY) {
+        if (signingProperties.in === import_types26.HttpApiKeyAuthLocation.QUERY) {
           clonedRequest.query[signingProperties.name] = identity.apiKey;
-        } else if (signingProperties.in === import_types25.HttpApiKeyAuthLocation.HEADER) {
+        } else if (signingProperties.in === import_types26.HttpApiKeyAuthLocation.HEADER) {
           clonedRequest.headers[signingProperties.name] = signingProperties.scheme ? `${signingProperties.scheme} ${identity.apiKey}` : identity.apiKey;
         } else {
           throw new Error("request can only be signed with `apiKey` locations `query` or `header`, but found: `" + signingProperties.in + "`");
@@ -25926,6 +25926,13 @@ module.exports = __toCommonJS(helper_exports);
 var import_promises4 = require("node:fs/promises");
 var import_node_path7 = __toESM(require("node:path"));
 
+// src/types.ts
+var PROFILE_METADATA_VERSION = 1;
+var CACHE_FORMAT_VERSION = 1;
+var CACHE_IDENTITY_SCHEMA = 1;
+var ROLE_DURATION_MIN_SECONDS = 1;
+var ROLE_DURATION_MAX_SECONDS = 43200;
+
 // src/input.ts
 var PROFILE_NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 var REGION = /^(?:[a-z]{2}(?:-gov|-iso)?|us-isob|eu-isoe|us-isof)-[a-z]+-\d+$/;
@@ -25962,15 +25969,29 @@ var PARTITION_ENDPOINT_SUFFIX = {
 function stsEndpointForRegion(partition2, region) {
   return `https://sts.${region}.${PARTITION_ENDPOINT_SUFFIX[partition2]}`;
 }
-function isValidEffectiveProfile(value) {
-  if (typeof value.name !== "string" || !PROFILE_NAME.test(value.name) || value.name === "default" || typeof value.roleArn !== "string" || typeof value.region !== "string" || typeof value.audience !== "string" || !AUDIENCE.test(value.audience) || typeof value.roleDurationSeconds !== "number" || !Number.isInteger(value.roleDurationSeconds) || value.roleDurationSeconds < 900 || value.roleDurationSeconds > 43200 || typeof value.sessionName !== "string" || !/^[\w+=,.@-]{2,64}$/.test(value.sessionName) || typeof value.stsEndpoint !== "string") {
+function isValidTestLoopbackStsEndpoint(value) {
+  if (typeof value !== "string") return false;
+  const exact = /^http:\/\/127\.0\.0\.1:(\d+)\/$/.exec(value);
+  if (!exact) return false;
+  const port = Number(exact[1]);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) return false;
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return url.protocol === "http:" && url.hostname === "127.0.0.1" && url.pathname === "/" && url.username === "" && url.password === "" && url.search === "" && url.hash === "";
+}
+function isValidEffectiveProfile(value, options = {}) {
+  if (typeof value.name !== "string" || !PROFILE_NAME.test(value.name) || value.name === "default" || typeof value.roleArn !== "string" || typeof value.region !== "string" || typeof value.audience !== "string" || !AUDIENCE.test(value.audience) || typeof value.roleDurationSeconds !== "number" || !Number.isInteger(value.roleDurationSeconds) || value.roleDurationSeconds < ROLE_DURATION_MIN_SECONDS || value.roleDurationSeconds > ROLE_DURATION_MAX_SECONDS || typeof value.sessionName !== "string" || !/^[\w+=,.@-]{2,64}$/.test(value.sessionName) || typeof value.stsEndpoint !== "string") {
     return false;
   }
   const match = ARN.exec(value.roleArn);
   if (!match || !(match[1] in PARTITION_REGION_PREFIX)) return false;
   const partition2 = match[1];
   const rolePath = match[3];
-  return value.partition === partition2 && Boolean(rolePath && rolePath.length <= 512 && ROLE_PATH.test(rolePath)) && REGION.test(value.region) && PARTITION_REGION_PREFIX[partition2].test(value.region) && partitionForRegion(value.region) === partition2 && value.stsEndpoint === stsEndpointForRegion(partition2, value.region);
+  return value.partition === partition2 && Boolean(rolePath && rolePath.length <= 512 && ROLE_PATH.test(rolePath)) && REGION.test(value.region) && PARTITION_REGION_PREFIX[partition2].test(value.region) && partitionForRegion(value.region) === partition2 && (value.stsEndpoint === stsEndpointForRegion(partition2, value.region) || options.allowTestLoopbackStsEndpoint === true && isValidTestLoopbackStsEndpoint(value.stsEndpoint));
 }
 
 // src/cache.ts
@@ -25979,13 +26000,6 @@ var import_node_fs = require("node:fs");
 var import_promises = require("node:fs/promises");
 var import_node_os = __toESM(require("node:os"));
 var import_node_path = __toESM(require("node:path"));
-
-// src/types.ts
-var PROFILE_METADATA_VERSION = 1;
-var CACHE_FORMAT_VERSION = 1;
-var CACHE_IDENTITY_SCHEMA = 1;
-
-// src/cache.ts
 var FILE_MODE = 384;
 var DIRECTORY_MODE = 448;
 var MAX_CACHE_FILE_BYTES = 64 * 1024;
@@ -26052,7 +26066,10 @@ function validCredentials(value) {
   const credentials = value;
   return typeof credentials.accessKeyId === "string" && /^ASIA[A-Z0-9]+$/.test(credentials.accessKeyId) && typeof credentials.secretAccessKey === "string" && credentials.secretAccessKey.length > 0 && typeof credentials.sessionToken === "string" && credentials.sessionToken.length > 0 && typeof credentials.expiration === "string";
 }
-function refreshWindow(durationSeconds) {
+function refreshWindowMs(durationSeconds) {
+  if (durationSeconds < 900) {
+    return Math.max(1e3, Math.min(3e4, durationSeconds * 100));
+  }
   return Math.max(6e4, Math.min(3e5, durationSeconds * 100));
 }
 function validateCacheRecord(value, identity, nowMs) {
@@ -26064,7 +26081,7 @@ function validateCacheRecord(value, identity, nowMs) {
   }
   const issuedAt = Date.parse(record.issuedAt);
   const expiration = Date.parse(record.expiration);
-  if (!Number.isFinite(issuedAt) || !Number.isFinite(expiration) || issuedAt > nowMs + 6e4 || issuedAt < nowMs - 432e5 - 3e5 || expiration <= issuedAt || expiration > issuedAt + identity.durationSeconds * 1e3 + 3e5 || nowMs >= expiration - refreshWindow(identity.durationSeconds)) {
+  if (!Number.isFinite(issuedAt) || !Number.isFinite(expiration) || issuedAt > nowMs + 6e4 || issuedAt < nowMs - 432e5 - 3e5 || expiration <= issuedAt || expiration > issuedAt + identity.durationSeconds * 1e3 + 3e5 || nowMs >= expiration - refreshWindowMs(identity.durationSeconds)) {
     return;
   }
   return record;
@@ -26226,7 +26243,7 @@ async function withCredentialCache(options) {
     const issuedAtMs = dependencies.now();
     const credentials = await options.refresh();
     const expirationMs = Date.parse(credentials.expiration);
-    if (!validCredentials(credentials) || !Number.isFinite(expirationMs) || expirationMs <= issuedAtMs + refreshWindow(identity.durationSeconds) || expirationMs > issuedAtMs + identity.durationSeconds * 1e3 + 3e5) {
+    if (!validCredentials(credentials) || !Number.isFinite(expirationMs) || expirationMs <= issuedAtMs + refreshWindowMs(identity.durationSeconds) || expirationMs > issuedAtMs + identity.durationSeconds * 1e3 + 3e5) {
       throw new Error("AWS STS returned invalid or implausible credentials");
     }
     const record = {
@@ -26438,7 +26455,6 @@ async function readProfileMetadata(metadataPath) {
     throw new Error("profile metadata has an unsupported format");
   }
   const metadata = value;
-  const localTestEndpoint = false;
   const effective = {
     name: metadata.name,
     roleArn: metadata.roleArn,
@@ -26449,7 +26465,9 @@ async function readProfileMetadata(metadataPath) {
     sessionName: metadata.sessionName,
     stsEndpoint: metadata.stsEndpoint
   };
-  if (!import_node_path7.default.isAbsolute(metadata.cacheRoot) || !isValidEffectiveProfile(effective) && !localTestEndpoint) {
+  if (!import_node_path7.default.isAbsolute(metadata.cacheRoot) || !isValidEffectiveProfile(effective, {
+    allowTestLoopbackStsEndpoint: false
+  })) {
     throw new Error("profile metadata is incomplete");
   }
   return metadata;

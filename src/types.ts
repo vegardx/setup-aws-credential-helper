@@ -1,6 +1,9 @@
 export const PROFILE_METADATA_VERSION = 1 as const;
 export const CACHE_FORMAT_VERSION = 1 as const;
 export const CACHE_IDENTITY_SCHEMA = 1 as const;
+export const ROLE_DURATION_MIN_SECONDS = 1 as const;
+export const ROLE_DURATION_MAX_SECONDS = 43_200 as const;
+export const AWS_STS_DOCUMENTED_MIN_SECONDS = 900 as const;
 
 export type AwsPartition =
   | "aws"
@@ -16,6 +19,7 @@ export interface Profile {
   roleArn: string;
   region: string;
   audience: string;
+  /** Requested session duration, passed to STS unchanged. Valid range: 1–43,200 seconds. */
   roleDurationSeconds: number;
   partition: AwsPartition;
 }

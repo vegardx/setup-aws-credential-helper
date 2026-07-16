@@ -4,6 +4,8 @@ import {
   assertSupportedRuntime,
   buildSessionName,
   findCredentialEnvironmentConflicts,
+  isValidEffectiveProfile,
+  isValidTestLoopbackStsEndpoint,
   parseProfiles,
   stsEndpointForRegion,
   validateDefaultProfile,
@@ -41,10 +43,77 @@ describe("profile input validation", () => {
     ],
     [[{ ...valid, region: "eu-west-1\ncredential_process=x" }], "safe"],
     [[{ ...valid, audience: "bad audience" }], "unsafe"],
-    [[{ ...valid, roleDurationSeconds: 899 }], "900"],
-    [[{ ...valid, roleDurationSeconds: 43201 }], "900"],
+    [[{ ...valid, roleDurationSeconds: 0 }], "1 through 43200"],
+    [[{ ...valid, roleDurationSeconds: -1 }], "1 through 43200"],
+    [[{ ...valid, roleDurationSeconds: 1.5 }], "1 through 43200"],
+    [[{ ...valid, roleDurationSeconds: "900" }], "1 through 43200"],
+    [[{ ...valid, roleDurationSeconds: 43201 }], "1 through 43200"],
   ])("rejects invalid profiles %#", (profiles, message) => {
     expect(() => parseProfiles(JSON.stringify(profiles))).toThrow(message);
+  });
+
+  it.each([1, 2, 30, 299, 300, 899, 900, 3600, 43_200])(
+    "accepts role duration %i unchanged",
+    (roleDurationSeconds) => {
+      expect(
+        parseProfiles(JSON.stringify([{ ...valid, roleDurationSeconds }]))[0]
+          ?.roleDurationSeconds,
+      ).toBe(roleDurationSeconds);
+    },
+  );
+
+  it("allows only a structurally exact test loopback STS endpoint", () => {
+    expect(isValidTestLoopbackStsEndpoint("http://127.0.0.1:4566/")).toBe(true);
+    for (const endpoint of [
+      "http://localhost:4566/",
+      "http://127.1:4566/",
+      "http://2130706433:4566/",
+      "http://[::1]:4566/",
+      "https://127.0.0.1:4566/",
+      "http://user@127.0.0.1:4566/",
+      "http://127.0.0.1/",
+      "http://127.0.0.1:0/",
+      "http://127.0.0.1:65536/",
+      "http://127.0.0.1:4566/path",
+      "http://127.0.0.1:4566/?query=1",
+      "http://127.0.0.1:4566/#fragment",
+      "not a URL",
+    ]) {
+      expect(isValidTestLoopbackStsEndpoint(endpoint), endpoint).toBe(false);
+    }
+  });
+
+  it("keeps non-endpoint effective metadata validation strict", () => {
+    const effective = {
+      name: "deployment",
+      roleArn: valid.roleArn,
+      region: valid.region,
+      audience: "sts.amazonaws.com",
+      roleDurationSeconds: 1,
+      partition: "aws",
+      sessionName: "gha-1-1-deployment",
+      stsEndpoint: "http://127.0.0.1:4566/",
+    };
+    expect(
+      isValidEffectiveProfile(effective, {
+        allowTestLoopbackStsEndpoint: true,
+      }),
+    ).toBe(true);
+    expect(isValidEffectiveProfile(effective)).toBe(false);
+    for (const invalid of [
+      { ...effective, roleArn: "invalid" },
+      { ...effective, region: "bad" },
+      { ...effective, audience: "bad audience" },
+      { ...effective, roleDurationSeconds: 0 },
+      { ...effective, partition: "aws-cn" },
+      { ...effective, sessionName: "x" },
+    ]) {
+      expect(
+        isValidEffectiveProfile(invalid, {
+          allowTestLoopbackStsEndpoint: true,
+        }),
+      ).toBe(false);
+    }
   });
 
   it("rejects malformed JSON, missing arrays, and missing defaults", () => {

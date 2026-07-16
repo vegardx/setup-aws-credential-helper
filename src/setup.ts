@@ -2,6 +2,7 @@ import * as core from "@actions/core";
 import { access, rm } from "node:fs/promises";
 import path from "node:path";
 
+import { AWS_STS_DOCUMENTED_MIN_SECONDS, type Profile } from "./types.js";
 import { createPrivateDirectory, generateConfiguration } from "./config.js";
 import {
   assertSupportedRuntime,
@@ -15,6 +16,7 @@ export interface ActionCore {
   getInput(name: string, options?: { required?: boolean }): string;
   saveState(name: string, value: string): void;
   setFailed(message: string | Error): void;
+  warning(message: string): void;
 }
 
 export async function runSetup(
@@ -39,6 +41,7 @@ export async function runSetup(
   const profiles = parseProfiles(
     actionCore.getInput("profiles", { required: true }),
   );
+  warnForSyntheticDurations(actionCore, profiles);
   const defaultProfile = validateDefaultProfile(
     actionCore.getInput("default-profile", { required: true }),
     profiles,
@@ -72,6 +75,19 @@ export async function runSetup(
       () => undefined,
     );
     throw error;
+  }
+}
+
+function warnForSyntheticDurations(
+  actionCore: ActionCore,
+  profiles: Profile[],
+): void {
+  for (const profile of profiles) {
+    if (profile.roleDurationSeconds < AWS_STS_DOCUMENTED_MIN_SECONDS) {
+      actionCore.warning(
+        `Profile "${profile.name}" requests roleDurationSeconds=${profile.roleDurationSeconds}. AWS STS documents a 900-second minimum; real AWS is expected to reject this short test duration. The requested value will be forwarded unchanged.`,
+      );
+    }
   }
 }
 

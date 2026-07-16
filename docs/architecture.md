@@ -26,7 +26,8 @@ post step (dist/cleanup.cjs, always())
 
 `src/setup.ts` and `src/config.ts` are the action's main entrypoint. Setup may use `@actions/core` because it runs as a normal JavaScript action step. It:
 
-- accepts and strictly validates the profile array and selected default;
+- accepts and strictly validates the profile array and selected default; requested durations are integers from 1 through 43,200, default to 3,600, and are never clamped;
+- warns for each duration below AWS STS's documented 900-second minimum because those values are intended for offline emulator tests and real AWS is expected to reject them;
 - rejects unsupported platforms and competing AWS credential environment sources;
 - verifies absolute action, runtime, and runner temporary paths;
 - creates a private child of `RUNNER_TEMP` with fixed generated basenames;
@@ -70,7 +71,7 @@ This keeps authorization at the system that grants AWS credentials and avoids pr
 
 `src/cache.ts` coordinates helper processes for AWS CLI, Terraform/OpenTofu core and backends, provider plugins, and other SDK consumers. Cache keys hash a deterministic canonical identity that includes profile, role, audience, duration, session/job context, partition, and the actual STS endpoint. The complete identity is also stored and compared on read.
 
-Records are private regular files written through exclusive same-directory temporary files and atomic rename. A per-identity atomic directory lock provides cross-process single flight. Waiters re-read after locking; definitely dead owners can be recovered conservatively; a live-lock timeout fails closed instead of performing an uncoordinated refresh. Credentials are rejected near expiration or when identity, format, permissions, timestamps, or shape are invalid.
+Records are private regular files written through exclusive same-directory temporary files and atomic rename. A per-identity atomic directory lock provides cross-process single flight. Waiters re-read after locking; definitely dead owners can be recovered conservatively; a live-lock timeout fails closed instead of performing an uncoordinated refresh. Credentials are rejected near expiration or when identity, format, permissions, timestamps, or shape are invalid. The early-refresh window is approximately 10% of the requested duration: sessions at or above 900 seconds preserve the 60-second to 5-minute bounds, while shorter offline-test sessions use 1-second to 30-second bounds. The same boundary validates newly issued credentials and cached records, preventing immediate refresh loops.
 
 The cache is designed for cooperating processes. It does not protect credentials from malicious code running under the same Unix user. The generated root, including cache records, is removed only best effort.
 
@@ -88,6 +89,6 @@ The three production bundles are committed:
 - `dist/helper.cjs`
 - `dist/cleanup.cjs`
 
-Automated tests use injected dependencies and a separately generated ignored `dist-test/helper.cjs`. Only that test bundle permits local plaintext mock OIDC/STS endpoints. The production build compiles this capability out; it must not become runtime-configurable.
+Automated tests use injected dependencies and a separately generated ignored `dist-test/helper.cjs`. Only that test bundle may replace the canonical regional STS endpoint, and only with a structurally exact `http://127.0.0.1:<port>/` URL. All other profile metadata remains under production validation. The test build also permits loopback mock OIDC transport. The production build compiles these capabilities out; endpoints cannot be redirected through runtime environment variables. Distribution verification executes the production helper to prove loopback STS/OIDC rejection before any request and checks that neither the production bundle nor action metadata references integration-only controls.
 
 No live AWS account, role, OIDC permission, or credential belongs in automated tests or repository workflows. See [live-test-checklist.md](live-test-checklist.md) for the separate owner-run validation procedure.
