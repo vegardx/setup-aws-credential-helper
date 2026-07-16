@@ -1,34 +1,33 @@
-name: Emulator comparison spike
+name: Emulator smoke test
 
 on:
   pull_request:
     paths:
-      - ".github/workflows/emulator-spike.yml"
+      - ".github/workflows/emulator-smoke.yml"
       - "tests/emulator-spike.test.ts"
       - "tests/emulator/**"
       - "package.json"
       - "package-lock.json"
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: emulator-spike-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: emulator-smoke-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  compare:
-    name: ${{ matrix.candidate }} on ${{ matrix.runner }}
+  smoke:
+    name: Moto on ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 10
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
-        candidate:
-          - floci
-          - moto
         runner:
           - ubuntu-24.04
           - ubuntu-24.04-arm
@@ -47,7 +46,5 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Run common acceptance spike
-        env:
-          EMULATOR_CANDIDATE: ${{ matrix.candidate }}
+      - name: Run selected emulator smoke test
         run: npm run test:emulator
