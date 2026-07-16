@@ -1,4 +1,10 @@
-import type { AwsPartition, JobIdentity, Profile } from "./types.js";
+import {
+  ROLE_DURATION_MAX_SECONDS,
+  ROLE_DURATION_MIN_SECONDS,
+  type AwsPartition,
+  type JobIdentity,
+  type Profile,
+} from "./types.js";
 
 const PROFILE_KEYS = new Set([
   "name",
@@ -135,11 +141,11 @@ function parseProfile(value: unknown, index: number): Profile {
   if (
     typeof roleDurationSeconds !== "number" ||
     !Number.isInteger(roleDurationSeconds) ||
-    roleDurationSeconds < 900 ||
-    roleDurationSeconds > 43_200
+    roleDurationSeconds < ROLE_DURATION_MIN_SECONDS ||
+    roleDurationSeconds > ROLE_DURATION_MAX_SECONDS
   ) {
     throw new Error(
-      `profiles[${index}].roleDurationSeconds must be an integer from 900 through 43200`,
+      `profiles[${index}].roleDurationSeconds must be an integer from 1 through 43200`,
     );
   }
 
@@ -164,8 +170,32 @@ export interface EffectiveProfileValidationInput {
   stsEndpoint: unknown;
 }
 
+export function isValidTestLoopbackStsEndpoint(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const exact = /^http:\/\/127\.0\.0\.1:(\d+)\/$/.exec(value);
+  if (!exact) return false;
+  const port = Number(exact[1]);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) return false;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === "http:" &&
+    url.hostname === "127.0.0.1" &&
+    url.pathname === "/" &&
+    url.username === "" &&
+    url.password === "" &&
+    url.search === "" &&
+    url.hash === ""
+  );
+}
+
 export function isValidEffectiveProfile(
   value: EffectiveProfileValidationInput,
+  options: { allowTestLoopbackStsEndpoint?: boolean } = {},
 ): boolean {
   if (
     typeof value.name !== "string" ||
@@ -177,8 +207,8 @@ export function isValidEffectiveProfile(
     !AUDIENCE.test(value.audience) ||
     typeof value.roleDurationSeconds !== "number" ||
     !Number.isInteger(value.roleDurationSeconds) ||
-    value.roleDurationSeconds < 900 ||
-    value.roleDurationSeconds > 43_200 ||
+    value.roleDurationSeconds < ROLE_DURATION_MIN_SECONDS ||
+    value.roleDurationSeconds > ROLE_DURATION_MAX_SECONDS ||
     typeof value.sessionName !== "string" ||
     !/^[\w+=,.@-]{2,64}$/.test(value.sessionName) ||
     typeof value.stsEndpoint !== "string"
@@ -195,7 +225,9 @@ export function isValidEffectiveProfile(
     REGION.test(value.region) &&
     PARTITION_REGION_PREFIX[partition].test(value.region) &&
     partitionForRegion(value.region) === partition &&
-    value.stsEndpoint === stsEndpointForRegion(partition, value.region)
+    (value.stsEndpoint === stsEndpointForRegion(partition, value.region) ||
+      (options.allowTestLoopbackStsEndpoint === true &&
+        isValidTestLoopbackStsEndpoint(value.stsEndpoint)))
   );
 }
 

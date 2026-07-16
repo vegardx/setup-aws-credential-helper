@@ -45,9 +45,6 @@ export async function readProfileMetadata(
     throw new Error("profile metadata has an unsupported format");
   }
   const metadata = value as ProfileMetadata;
-  const localTestEndpoint =
-    __TEST_ALLOW_LOCAL_HTTP__ &&
-    metadata.stsEndpoint.startsWith("http://127.0.0.1:");
   const effective: EffectiveProfileValidationInput = {
     name: metadata.name,
     roleArn: metadata.roleArn,
@@ -60,7 +57,9 @@ export async function readProfileMetadata(
   };
   if (
     !path.isAbsolute(metadata.cacheRoot) ||
-    (!isValidEffectiveProfile(effective) && !localTestEndpoint)
+    !isValidEffectiveProfile(effective, {
+      allowTestLoopbackStsEndpoint: __TEST_ALLOW_LOCAL_HTTP__,
+    })
   ) {
     throw new Error("profile metadata is incomplete");
   }

@@ -21034,13 +21034,16 @@ function getIDToken(aud) {
 var import_promises2 = require("node:fs/promises");
 var import_node_path2 = __toESM(require("node:path"));
 
+// src/types.ts
+var PROFILE_METADATA_VERSION = 1;
+var ROLE_DURATION_MIN_SECONDS = 1;
+var ROLE_DURATION_MAX_SECONDS = 43200;
+var AWS_STS_DOCUMENTED_MIN_SECONDS = 900;
+
 // src/config.ts
 var import_promises = require("node:fs/promises");
 var import_node_fs = require("node:fs");
 var import_node_path = __toESM(require("node:path"));
-
-// src/types.ts
-var PROFILE_METADATA_VERSION = 1;
 
 // src/input.ts
 var PROFILE_KEYS = /* @__PURE__ */ new Set([
@@ -21143,9 +21146,9 @@ function parseProfile(value, index) {
     throw new Error(`profiles[${index}].audience is unsafe`);
   }
   const roleDurationSeconds = input.roleDurationSeconds ?? 3600;
-  if (typeof roleDurationSeconds !== "number" || !Number.isInteger(roleDurationSeconds) || roleDurationSeconds < 900 || roleDurationSeconds > 43200) {
+  if (typeof roleDurationSeconds !== "number" || !Number.isInteger(roleDurationSeconds) || roleDurationSeconds < ROLE_DURATION_MIN_SECONDS || roleDurationSeconds > ROLE_DURATION_MAX_SECONDS) {
     throw new Error(
-      `profiles[${index}].roleDurationSeconds must be an integer from 900 through 43200`
+      `profiles[${index}].roleDurationSeconds must be an integer from 1 through 43200`
     );
   }
   return {
@@ -21335,6 +21338,7 @@ async function runSetup(options = {}) {
   const profiles = parseProfiles(
     actionCore.getInput("profiles", { required: true })
   );
+  warnForSyntheticDurations(actionCore, profiles);
   const defaultProfile = validateDefaultProfile(
     actionCore.getInput("default-profile", { required: true }),
     profiles
@@ -21367,6 +21371,15 @@ async function runSetup(options = {}) {
       () => void 0
     );
     throw error2;
+  }
+}
+function warnForSyntheticDurations(actionCore, profiles) {
+  for (const profile of profiles) {
+    if (profile.roleDurationSeconds < AWS_STS_DOCUMENTED_MIN_SECONDS) {
+      actionCore.warning(
+        `Profile "${profile.name}" requests roleDurationSeconds=${profile.roleDurationSeconds}. AWS STS documents a 900-second minimum; real AWS is expected to reject this short test duration. The requested value will be forwarded unchanged.`
+      );
+    }
   }
 }
 if (require.main === module) {

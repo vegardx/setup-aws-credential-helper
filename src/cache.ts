@@ -124,7 +124,10 @@ function validCredentials(value: unknown): value is AwsCredentials {
   );
 }
 
-function refreshWindow(durationSeconds: number): number {
+export function refreshWindowMs(durationSeconds: number): number {
+  if (durationSeconds < 900) {
+    return Math.max(1_000, Math.min(30_000, durationSeconds * 100));
+  }
   return Math.max(60_000, Math.min(300_000, durationSeconds * 100));
 }
 
@@ -155,7 +158,7 @@ export function validateCacheRecord(
     issuedAt < nowMs - 43_200_000 - 300_000 ||
     expiration <= issuedAt ||
     expiration > issuedAt + identity.durationSeconds * 1000 + 300_000 ||
-    nowMs >= expiration - refreshWindow(identity.durationSeconds)
+    nowMs >= expiration - refreshWindowMs(identity.durationSeconds)
   ) {
     return;
   }
@@ -385,7 +388,7 @@ export async function withCredentialCache(options: {
     if (
       !validCredentials(credentials) ||
       !Number.isFinite(expirationMs) ||
-      expirationMs <= issuedAtMs + refreshWindow(identity.durationSeconds) ||
+      expirationMs <= issuedAtMs + refreshWindowMs(identity.durationSeconds) ||
       expirationMs > issuedAtMs + identity.durationSeconds * 1000 + 300_000
     ) {
       throw new Error("AWS STS returned invalid or implausible credentials");

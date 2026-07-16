@@ -2,7 +2,10 @@ name: Setup AWS credential helper
 description: Configure renewable AWS OIDC credentials through AWS credential_process
 inputs:
   profiles:
-    description: JSON array of named AWS role profiles
+    description: >-
+      JSON array of named AWS role profiles. roleDurationSeconds defaults to
+      3600 and accepts integers from 1 through 43200; AWS STS documents a
+      900-second minimum and is expected to reject lower values.
     required: true
   default-profile:
     description: Name of the profile exported as AWS_PROFILE

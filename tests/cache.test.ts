@@ -14,6 +14,7 @@ import {
   cacheIdentity,
   canonicalJson,
   identityKey,
+  refreshWindowMs,
   validateCacheRecord,
   withCredentialCache,
   type CacheDependencies,
@@ -27,14 +28,18 @@ import type {
 const roots: string[] = [];
 const now = Date.UTC(2026, 0, 1);
 
-function metadata(cacheRoot: string, name = "prod"): ProfileMetadata {
+function metadata(
+  cacheRoot: string,
+  name = "prod",
+  roleDurationSeconds = 900,
+): ProfileMetadata {
   return {
     version: 1,
     name,
     roleArn: "arn:aws:iam::123456789012:role/prod",
     region: "eu-west-1",
     audience: "sts.amazonaws.com",
-    roleDurationSeconds: 900,
+    roleDurationSeconds,
     partition: "aws",
     sessionName: `gha-1-1-${name}`,
     jobIdentity: {
@@ -103,6 +108,66 @@ describe("credential cache", () => {
     expect(identityKey(cacheIdentity(metadata(cacheRoot, "one")))).not.toBe(
       identityKey(cacheIdentity(metadata(cacheRoot, "two"))),
     );
+  });
+
+  it.each([
+    [1, 1_000],
+    [2, 1_000],
+    [10, 1_000],
+    [11, 1_100],
+    [299, 29_900],
+    [300, 30_000],
+    [899, 30_000],
+    [900, 90_000],
+    [3_600, 300_000],
+    [43_200, 300_000],
+  ])(
+    "uses a %i-second duration refresh window of %i ms",
+    (durationSeconds, expectedMs) => {
+      expect(refreshWindowMs(durationSeconds)).toBe(expectedMs);
+    },
+  );
+
+  it.each([1, 11, 300, 899, 900, 3_600, 43_200])(
+    "uses the same refresh boundary for duration %i when reading",
+    (durationSeconds) => {
+      const profile = metadata("/tmp/cache", "prod", durationSeconds);
+      const identity = cacheIdentity(profile);
+      const window = refreshWindowMs(durationSeconds);
+      const record = (offset: number): CacheRecord => ({
+        formatVersion: 1,
+        identity,
+        credentials: credentials(offset),
+        issuedAt: new Date(now).toISOString(),
+        expiration: credentials(offset).expiration,
+      });
+      expect(
+        validateCacheRecord(record(window), identity, now),
+      ).toBeUndefined();
+      expect(
+        validateCacheRecord(record(window + 1), identity, now),
+      ).toBeDefined();
+    },
+  );
+
+  it("accepts and reuses plausible short-session credentials", async () => {
+    const profile = metadata(await root(), "short", 2);
+    const refresh = vi.fn().mockResolvedValue(credentials(2_000));
+    await expect(
+      withCredentialCache({
+        metadata: profile,
+        refresh,
+        dependencies: dependencies(),
+      }),
+    ).resolves.toEqual(credentials(2_000));
+    await expect(
+      withCredentialCache({
+        metadata: profile,
+        refresh,
+        dependencies: dependencies(),
+      }),
+    ).resolves.toEqual(credentials(2_000));
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("single-flights concurrent refresh and publishes private records", async () => {
@@ -239,6 +304,21 @@ describe("credential cache", () => {
       }),
     ).resolves.toEqual(credentials());
   });
+
+  it.each([1, 11, 300, 899, 900, 3_600, 43_200])(
+    "uses the same refresh boundary for duration %i on new credentials",
+    async (durationSeconds) => {
+      const profile = metadata(await root(), "boundary", durationSeconds);
+      const window = refreshWindowMs(durationSeconds);
+      await expect(
+        withCredentialCache({
+          metadata: profile,
+          refresh: vi.fn().mockResolvedValue(credentials(window)),
+          dependencies: dependencies(),
+        }),
+      ).rejects.toThrow("invalid or implausible");
+    },
+  );
 
   it("does not publish invalid refresh output", async () => {
     const profile = metadata(await root());
