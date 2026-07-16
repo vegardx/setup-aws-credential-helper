@@ -1,0 +1,96 @@
+name: Offline integration
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-integration-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  consumers:
+    name: Moto consumers (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        runner:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24.10.0"
+          cache: npm
+
+      - name: Install locked dependencies and consumer CLIs
+        run: |
+          npm ci
+          scripts/install-integration-tools.sh
+
+      - name: Run real-consumer offline acceptance suite
+        run: npm run test:offline
+
+      - name: Remove any retained emulator containers
+        if: always()
+        run: >-
+          docker ps --all --quiet
+          --filter label=io.github.vegardx.setup-aws-credential-helper.test=true
+          | xargs --no-run-if-empty docker rm --force
+
+  job-container:
+    name: Linux job container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container:
+      image: node:24-bookworm@sha256:5711a0d445a1af54af9589066c646df387d1831a608226f4cd694fc59e745059
+    services:
+      moto:
+        image: motoserver/moto:latest@sha256:d8ae5edc2bf080e7e4c13f9bd4b29b53ac3b4427e92956318db3dbe23ec43eb7
+        ports:
+          - 5000:5000
+    env:
+      MOTO_ENDPOINT: http://moto:5000
+      INTEGRATION_CONSUMERS: sdk-only
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Exercise absolute helper paths inside the job container
+        run: npx vitest run tests/offline-consumers.test.ts
+
+  integration:
+    name: Offline integration
+    if: always()
+    runs-on: ubuntu-24.04
+    needs:
+      - consumers
+      - job-container
+    timeout-minutes: 2
+    steps:
+      - name: Aggregate required offline checks
+        env:
+          CONSUMERS_RESULT: ${{ needs.consumers.result }}
+          CONTAINER_RESULT: ${{ needs.job-container.result }}
+        run: |
+          test "$CONSUMERS_RESULT" = success
+          test "$CONTAINER_RESULT" = success

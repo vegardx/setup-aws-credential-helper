@@ -48,6 +48,29 @@ for (const file of files) {
       );
     }
   }
+  if (file !== "release.yml" && /\bsecrets\s*\./u.test(content)) {
+    errors.push(
+      `${relativePath}: non-release workflows must not consume secrets`,
+    );
+  }
+  if (file === "offline-integration.yml") {
+    if (!/^ {4}name: Offline integration$/mu.test(content)) {
+      errors.push(`${relativePath}: stable aggregate job name is missing`);
+    }
+    if (!content.includes("ubuntu-24.04-arm")) {
+      errors.push(`${relativePath}: required native arm64 runner is missing`);
+    }
+  }
+  if (file === "ubuntu-26-compatibility.yml") {
+    if (
+      !content.includes("ubuntu-26.04") ||
+      !content.includes("ubuntu-26.04-arm")
+    ) {
+      errors.push(
+        `${relativePath}: both Ubuntu 26 preview architectures are required`,
+      );
+    }
+  }
   if (/\bpull_request_target\s*:/u.test(content)) {
     errors.push(`${relativePath}: pull_request_target is forbidden`);
   }
