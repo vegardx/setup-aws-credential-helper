@@ -15,7 +15,7 @@ export function flociAdapter(): EmulatorAdapter {
       if (!response.ok) return false;
       try {
         const health = JSON.parse(body) as FlociHealth;
-        return ["sts", "s3", "sqs", "cloudformation"].every(
+        return ["s3", "sqs", "cloudformation"].every(
           (service) => health.services?.[service] === "running",
         );
       } catch {
