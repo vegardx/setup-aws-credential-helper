@@ -74,16 +74,15 @@ function selectedAdapter(): EmulatorAdapter {
   return motoAdapter();
 }
 
-class AwsCliUnexpectedSuccess extends Error {}
-
 async function awsCli(
   env: NodeJS.ProcessEnv,
   endpoint: string,
   args: string[],
   expectFailure = false,
 ): Promise<{ stdout: string; stderr: string }> {
+  let result: { stdout: string; stderr: string };
   try {
-    const result = await execFileAsync(
+    result = await execFileAsync(
       "aws",
       ["--no-cli-pager", "--endpoint-url", endpoint, ...args],
       {
@@ -93,12 +92,7 @@ async function awsCli(
         timeout: 30_000,
       },
     );
-    if (expectFailure) {
-      throw new AwsCliUnexpectedSuccess("AWS CLI unexpectedly succeeded");
-    }
-    return result;
   } catch (error) {
-    if (error instanceof AwsCliUnexpectedSuccess) throw error;
     if (expectFailure && typeof error === "object" && error !== null) {
       return {
         stdout: String((error as { stdout?: unknown }).stdout ?? ""),
@@ -107,6 +101,10 @@ async function awsCli(
     }
     throw error;
   }
+  if (expectFailure) {
+    throw new Error("AWS CLI unexpectedly succeeded");
+  }
+  return result;
 }
 
 function sdkCredentials(harness: IdentityHarness, profile: SpikeProfile) {
