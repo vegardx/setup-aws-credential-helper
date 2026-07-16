@@ -111,10 +111,6 @@ function profileFromStsBody(body: string): SpikeProfile | undefined {
   );
 }
 
-function quote(value: string): string {
-  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
-}
-
 function syntheticStsResponse(
   profile: SpikeProfile,
   generation: number,
@@ -287,9 +283,7 @@ process.exit(result.status === null ? 1 : result.status);
         invocationLogPath,
         helperBundle,
         metadataPath,
-      ]
-        .map(quote)
-        .join(" ");
+      ].join(" ");
       configLines.push(
         `[profile ${profile}]`,
         "region = us-east-1",

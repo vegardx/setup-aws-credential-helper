@@ -360,7 +360,7 @@ skip_s3_checksum = true
     `-var=bucket=${workloadBucket}`,
     `-var=prefix=${options.engine}`,
   ];
-  const countersBefore = { ...options.harness.stsCalls };
+  const countersBefore = await options.harness.invocationCalls();
   let initialized = false;
   try {
     await run(command, ["init", "-input=false", `-backend-config=${backend}`], {
@@ -395,10 +395,9 @@ skip_s3_checksum = true
       { cwd: engineRoot, env, timeout: 240_000 },
     );
 
-    expect(options.harness.stsCalls.state).toBeGreaterThan(
-      countersBefore.state,
-    );
-    expect(options.harness.stsCalls.deployment).toBeGreaterThan(
+    const countersAfter = await options.harness.invocationCalls();
+    expect(countersAfter.state).toBeGreaterThan(countersBefore.state);
+    expect(countersAfter.deployment).toBeGreaterThan(
       countersBefore.deployment,
     );
     const cacheFiles = await run(
