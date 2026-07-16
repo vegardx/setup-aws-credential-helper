@@ -1,7 +1,7 @@
 # Service emulator smoke test
 
-Moto is the selected secretless service emulator for the acceptance smoke test.
-The test pulls the moving `motoserver/moto:latest` image and logs its resolved
+Moto is the selected secretless service emulator for the acceptance suite.
+The suite intentionally pulls the moving `motoserver/moto:latest` image and logs its resolved
 version, manifest digest, architecture-specific image ID, runner OS, and Node
 architecture on every run.
 
@@ -30,5 +30,7 @@ Run the retained smoke test with:
 npm run test:emulator
 ```
 
-It requires Docker and the AWS CLI, but no AWS credentials, GitHub OIDC
+The retained suite additionally exercises pinned Terraform 1.15.8, OpenTofu 1.12.4, and AWS provider 6.54.0 with engine-specific lock files; separate S3 backend/provider profiles; cross-process cache reuse; short synthetic renewal; and a same-job Linux container. Ubuntu 24.04 x64/arm64 is required; Ubuntu 26.04 x64/arm64 is public-preview canary coverage.
+
+It requires Docker and the AWS CLI (plus the checksum-installed IaC CLIs for the full suite), but no AWS credentials, GitHub OIDC
 permission, license token, or mounted Docker socket inside the emulator.
