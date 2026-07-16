@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { runCleanup } from "../src/cleanup.js";
@@ -94,13 +95,13 @@ describe("mocked Linux end-to-end behavior", () => {
         let body = "";
         for await (const chunk of request) body += String(chunk);
         expect(body).toContain("Action=AssumeRoleWithWebIdentity");
-        expect(body).toContain("WebIdentityToken=");
+        expect(body).toContain("DurationSeconds=2");
         response.setHeader("content-type", "text/xml");
         response.end(`<?xml version="1.0" encoding="UTF-8"?>
 <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
   <AssumeRoleWithWebIdentityResult><Credentials>
     <AccessKeyId>ASIAE2EEXAMPLE</AccessKeyId><SecretAccessKey>secret-e2e</SecretAccessKey>
-    <SessionToken>session-e2e</SessionToken><Expiration>${new Date(Date.now() + 900_000).toISOString()}</Expiration>
+    <SessionToken>session-e2e-${stsCalls}</SessionToken><Expiration>${new Date(Date.now() + 2_000).toISOString()}</Expiration>
   </Credentials></AssumeRoleWithWebIdentityResult>
   <ResponseMetadata><RequestId>request-id</RequestId></ResponseMetadata>
 </AssumeRoleWithWebIdentityResponse>`);
@@ -123,7 +124,7 @@ describe("mocked Linux end-to-end behavior", () => {
         roleArn: "arn:aws:iam::123456789012:role/prod",
         region: "us-east-1",
         audience: "sts.amazonaws.com",
-        roleDurationSeconds: 900,
+        roleDurationSeconds: 2,
         partition: "aws",
         sessionName: "gha-1-1-prod",
         jobIdentity: {
@@ -136,7 +137,7 @@ describe("mocked Linux end-to-end behavior", () => {
           runAttempt: "1",
           ref: "refs/heads/main",
         },
-        stsEndpoint: `http://127.0.0.1:${address.port}`,
+        stsEndpoint: `http://127.0.0.1:${address.port}/`,
         cacheRoot,
       };
       const metadataPath = path.join(root, "profile.json");
@@ -146,7 +147,9 @@ describe("mocked Linux end-to-end behavior", () => {
           invokeHelper(metadataPath, {
             ACTIONS_ID_TOKEN_REQUEST_URL: `http://127.0.0.1:${address.port}/oidc?api=1`,
             ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-secret",
-            CREDENTIAL_HELPER_TEST_ALLOW_HTTP: undefined,
+            CREDENTIAL_HELPER_TEST_ALLOW_HTTP: "1",
+            AWS_ENDPOINT_URL_STS: "http://localhost:1/",
+            LOCALSTACK_ENDPOINT: "http://localhost:2/",
           }),
         ),
       );
@@ -165,12 +168,80 @@ describe("mocked Linux end-to-end behavior", () => {
         Version: 1,
         AccessKeyId: "ASIAE2EEXAMPLE",
         SecretAccessKey: "secret-e2e",
-        SessionToken: "session-e2e",
+        SessionToken: "session-e2e-1",
       });
+
+      const cached = await invokeHelper(metadataPath, {});
+      expect(cached.code).toBe(0);
+      expect(JSON.parse(cached.stdout)).toEqual(documents[0]);
+      expect(oidcCalls).toBe(1);
+      expect(stsCalls).toBe(1);
+
+      await delay(1_100);
+      const renewed = await invokeHelper(metadataPath, {
+        ACTIONS_ID_TOKEN_REQUEST_URL: `http://127.0.0.1:${address.port}/oidc?api=1`,
+        ACTIONS_ID_TOKEN_REQUEST_TOKEN: "request-secret",
+      });
+      expect(renewed.code).toBe(0);
+      expect(JSON.parse(renewed.stdout)).toMatchObject({
+        Version: 1,
+        SessionToken: "session-e2e-2",
+      });
+      expect(oidcCalls).toBe(2);
+      expect(stsCalls).toBe(2);
     } finally {
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
       );
+    }
+  });
+
+  it("rejects malformed local endpoints and invalid metadata in the test bundle", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "helper-invalid-e2e-"));
+    roots.push(root);
+    const cacheRoot = path.join(root, "cache");
+    await mkdir(cacheRoot, { mode: 0o700 });
+    const validMetadata: ProfileMetadata = {
+      version: 1,
+      name: "prod",
+      roleArn: "arn:aws:iam::123456789012:role/prod",
+      region: "us-east-1",
+      audience: "sts.amazonaws.com",
+      roleDurationSeconds: 2,
+      partition: "aws",
+      sessionName: "gha-1-1-prod",
+      jobIdentity: {
+        serverUrl: "https://github.com",
+        repository: "owner/repo",
+        workflow: "test",
+        workflowRef: "",
+        job: "test",
+        runId: "1",
+        runAttempt: "1",
+        ref: "refs/heads/main",
+      },
+      stsEndpoint: "http://127.0.0.1:4566/",
+      cacheRoot,
+    };
+    const invalidMetadata: ProfileMetadata[] = [
+      { ...validMetadata, roleArn: "not-an-arn" },
+      { ...validMetadata, roleDurationSeconds: 0 },
+      { ...validMetadata, audience: "bad audience" },
+      { ...validMetadata, stsEndpoint: "http://localhost:4566/" },
+      { ...validMetadata, stsEndpoint: "http://127.0.0.1:4566/path" },
+      { ...validMetadata, stsEndpoint: "http://127.0.0.1:4566/?query=1" },
+      { ...validMetadata, stsEndpoint: "http://user@127.0.0.1:4566/" },
+    ];
+    for (const [index, metadata] of invalidMetadata.entries()) {
+      const metadataPath = path.join(root, `invalid-${index}.json`);
+      await writeFile(metadataPath, JSON.stringify(metadata), { mode: 0o600 });
+      const result = await invokeHelper(metadataPath, {
+        ACTIONS_ID_TOKEN_REQUEST_URL: "http://127.0.0.1:4566/oidc",
+        ACTIONS_ID_TOKEN_REQUEST_TOKEN: "unused",
+      });
+      expect(result.code, JSON.stringify(metadata)).not.toBe(0);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("profile metadata is incomplete");
     }
   });
 
@@ -206,6 +277,7 @@ describe("mocked Linux end-to-end behavior", () => {
         appendFileSync(stateFile, `${name}=${value}\n`);
       },
       setFailed: () => undefined,
+      warning: () => undefined,
     };
     const directory = await runSetup({
       core: actionCore,

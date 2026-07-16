@@ -27,6 +27,11 @@ const metadata: ProfileMetadata = {
   cacheRoot: "/tmp/cache",
 };
 
+const shortMetadata: ProfileMetadata = {
+  ...metadata,
+  roleDurationSeconds: 17,
+};
+
 describe("STS exchange", () => {
   it("sends exact effective role inputs and validates output", async () => {
     const send = vi.fn().mockResolvedValue({
@@ -57,6 +62,23 @@ describe("STS exchange", () => {
       WebIdentityToken: "jwt-secret",
       DurationSeconds: 900,
     });
+  });
+
+  it("forwards a synthetic short duration unchanged", async () => {
+    const send = vi.fn().mockResolvedValue({
+      Credentials: {
+        AccessKeyId: "ASIAEXAMPLE",
+        SecretAccessKey: "secret",
+        SessionToken: "session",
+        Expiration: new Date("2026-01-01T00:00:17Z"),
+      },
+    });
+    await exchangeWebIdentity({
+      metadata: shortMetadata,
+      webIdentityToken: "jwt-secret",
+      client: { send },
+    });
+    expect(send.mock.calls[0]![0].input.DurationSeconds).toBe(17);
   });
 
   it("fails incomplete responses", async () => {
