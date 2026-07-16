@@ -74,6 +74,8 @@ function selectedAdapter(): EmulatorAdapter {
   return motoAdapter();
 }
 
+class AwsCliUnexpectedSuccess extends Error {}
+
 async function awsCli(
   env: NodeJS.ProcessEnv,
   endpoint: string,
@@ -91,9 +93,12 @@ async function awsCli(
         timeout: 30_000,
       },
     );
-    if (expectFailure) throw new Error("AWS CLI unexpectedly succeeded");
+    if (expectFailure) {
+      throw new AwsCliUnexpectedSuccess("AWS CLI unexpectedly succeeded");
+    }
     return result;
   } catch (error) {
+    if (error instanceof AwsCliUnexpectedSuccess) throw error;
     if (expectFailure && typeof error === "object" && error !== null) {
       return {
         stdout: String((error as { stdout?: unknown }).stdout ?? ""),
@@ -375,6 +380,20 @@ async function cloudFormationProbe(options: {
   }
 }
 
+async function unexpectedSuccessGuardControl(options: {
+  endpoint: string;
+  harness: IdentityHarness;
+}): Promise<void> {
+  await expect(
+    awsCli(
+      options.harness.consumerEnv("identity"),
+      options.endpoint,
+      ["s3api", "list-buckets"],
+      true,
+    ),
+  ).rejects.toThrow("AWS CLI unexpectedly succeeded");
+}
+
 async function brokenCredentialProcessControl(options: {
   root: string;
   endpoint: string;
@@ -482,6 +501,10 @@ test("runs the selected secretless emulator acceptance smoke test", async () => 
       endpoint: emulator.endpoint,
       harness,
       suffix,
+    });
+    await unexpectedSuccessGuardControl({
+      endpoint: emulator.endpoint,
+      harness,
     });
     await brokenCredentialProcessControl({
       root,
