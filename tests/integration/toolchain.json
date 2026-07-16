@@ -1,0 +1,12 @@
+{
+  "terraform": "1.15.8",
+  "opentofu": "1.12.4",
+  "awsProvider": "6.54.0",
+  "motoImage": "motoserver/moto:latest",
+  "checksums": {
+    "terraformLinuxAmd64": "d25ce7b6902013ad905db3d2eab0be4cd905887fe88b81a6171b8d5503c31f3d",
+    "terraformLinuxArm64": "8891e9dcedc9e3b8950bc6af9d4d8af1f4cfade3062f53b9dc403a89f6ce8c9c",
+    "opentofuLinuxAmd64": "f5d2ae8a0efcddd3722546b3e0f2f2f0648ce5e5a3e411176041adcb7dccc1e8",
+    "opentofuLinuxArm64": "a3b01db857c7c650768ffa8ad9119dc2db82fe1b98125b7238392a160aca7f8a"
+  }
+}
