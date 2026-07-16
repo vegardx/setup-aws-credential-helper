@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { spawn } from "node:child_process";
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 
@@ -25,6 +25,7 @@ export interface IdentityHarness {
   metadataPaths: Record<SpikeProfile, string>;
   oidcCalls: number;
   stsCalls: Record<SpikeProfile, number>;
+  invocationCalls(): Promise<Record<SpikeProfile, number>>;
   resolve(profile: SpikeProfile): Promise<ProcessCredentialDocument>;
   consumerEnv(profile: SpikeProfile): NodeJS.ProcessEnv;
   close(): Promise<void>;
@@ -114,12 +115,32 @@ function quote(value: string): string {
   return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
+function syntheticStsResponse(
+  profile: SpikeProfile,
+  generation: number,
+  durationSeconds: number,
+): string {
+  const profileCode = SPIKE_PROFILES.indexOf(profile) + 1;
+  const suffix = `${profileCode}${generation}`.padStart(8, "0");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleWithWebIdentityResult><Credentials>
+    <AccessKeyId>ASIAOFFLINE${suffix}</AccessKeyId>
+    <SecretAccessKey>controlled-secret-${profile}-${generation}</SecretAccessKey>
+    <SessionToken>controlled-session-${profile}-${generation}</SessionToken>
+    <Expiration>${new Date(Date.now() + durationSeconds * 1_000).toISOString()}</Expiration>
+  </Credentials></AssumeRoleWithWebIdentityResult>
+  <ResponseMetadata><RequestId>controlled-${profile}-${generation}</RequestId></ResponseMetadata>
+</AssumeRoleWithWebIdentityResponse>`;
+}
+
 export async function createIdentityHarness(options: {
   root: string;
   helperBundle: string;
-  stsTarget: string;
+  stsTarget?: string;
+  roleDurationSeconds?: number;
 }): Promise<IdentityHarness> {
-  const { root, helperBundle, stsTarget } = options;
+  const { root, helperBundle, stsTarget, roleDurationSeconds = 900 } = options;
   const cacheRoot = path.join(root, "cache");
   const profileRoot = path.join(root, "profiles");
   await mkdir(cacheRoot, { mode: 0o700 });
@@ -161,6 +182,13 @@ export async function createIdentityHarness(options: {
         return;
       }
       stsCalls[profile] += 1;
+      if (!stsTarget) {
+        response.setHeader("content-type", "text/xml");
+        response.end(
+          syntheticStsResponse(profile, stsCalls[profile], roleDurationSeconds),
+        );
+        return;
+      }
       try {
         const upstream = await fetch(stsTarget, {
           method: "POST",
@@ -201,6 +229,24 @@ export async function createIdentityHarness(options: {
 
   const metadataPaths = {} as Record<SpikeProfile, string>;
   const configLines: string[] = [];
+  const invocationLogPath = path.join(root, "credential-process-invocations");
+  const wrapperPath = path.join(root, "credential-process-wrapper.cjs");
+  await writeFile(
+    wrapperPath,
+    `const fs = require("node:fs");
+const { spawnSync } = require("node:child_process");
+const [, , profile, logPath, helper, metadata] = process.argv;
+fs.appendFileSync(logPath, profile + "\\n", { encoding: "utf8", mode: 0o600 });
+const result = spawnSync(process.execPath, [helper, metadata], { env: process.env, stdio: "inherit" });
+process.exit(result.status === null ? 1 : result.status);
+`,
+    { encoding: "utf8", flag: "wx", mode: 0o600 },
+  );
+  await writeFile(invocationLogPath, "", {
+    encoding: "utf8",
+    flag: "wx",
+    mode: 0o600,
+  });
   try {
     for (const profile of SPIKE_PROFILES) {
       const metadataPath = path.join(profileRoot, `${profile}.json`);
@@ -210,7 +256,7 @@ export async function createIdentityHarness(options: {
         roleArn: `arn:aws:iam::${ACCOUNT_ID}:role/${profile}`,
         region: "us-east-1",
         audience: "sts.amazonaws.com",
-        roleDurationSeconds: 900,
+        roleDurationSeconds,
         partition: "aws",
         sessionName: `gha-1-1-${profile}`,
         jobIdentity: {
@@ -234,7 +280,14 @@ export async function createIdentityHarness(options: {
       });
       await chmod(metadataPath, 0o600);
       metadataPaths[profile] = metadataPath;
-      const command = [process.execPath, helperBundle, metadataPath]
+      const command = [
+        process.execPath,
+        wrapperPath,
+        profile,
+        invocationLogPath,
+        helperBundle,
+        metadataPath,
+      ]
         .map(quote)
         .join(" ");
       configLines.push(
@@ -265,6 +318,20 @@ export async function createIdentityHarness(options: {
         return oidcCalls;
       },
       stsCalls,
+      invocationCalls: async () => {
+        const counts = Object.fromEntries(
+          SPIKE_PROFILES.map((profile) => [profile, 0]),
+        ) as Record<SpikeProfile, number>;
+        const entries = (await readFile(invocationLogPath, "utf8"))
+          .split("\n")
+          .filter(Boolean);
+        for (const entry of entries) {
+          if (SPIKE_PROFILES.includes(entry as SpikeProfile)) {
+            counts[entry as SpikeProfile] += 1;
+          }
+        }
+        return counts;
+      },
       resolve: (profile) =>
         runHelper(helperBundle, metadataPaths[profile], helperEnvironment),
       consumerEnv: (profile) => ({
@@ -273,6 +340,10 @@ export async function createIdentityHarness(options: {
         AWS_PROFILE: profile,
         AWS_SDK_LOAD_CONFIG: "1",
         AWS_EC2_METADATA_DISABLED: "true",
+        AWS_CONTAINER_CREDENTIALS_FULL_URI: undefined,
+        AWS_CONTAINER_CREDENTIALS_RELATIVE_URI: undefined,
+        AWS_WEB_IDENTITY_TOKEN_FILE: undefined,
+        AWS_ROLE_ARN: undefined,
       }),
       close: () =>
         new Promise<void>((resolve, reject) =>
