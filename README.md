@@ -1,8 +1,10 @@
 # Setup AWS credential helper
 
-[![CI](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ci.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ci.yml)
-[![Workflow security](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/workflow-security.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/workflow-security.yml)
-[![Ubuntu 26 compatibility](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ubuntu-26-compatibility.yml/badge.svg)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ubuntu-26-compatibility.yml)
+[![CI](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ci.yml)
+[![Ubuntu 24 · amd64 + arm64](https://img.shields.io/github/actions/workflow/status/vegardx/setup-aws-credential-helper/offline-integration.yml?branch=main&label=Ubuntu%2024%20%C2%B7%20amd64%20%2B%20arm64)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/offline-integration.yml)
+[![Ubuntu 26 preview · amd64 + arm64](https://img.shields.io/github/actions/workflow/status/vegardx/setup-aws-credential-helper/ubuntu-26-compatibility.yml?branch=main&label=Ubuntu%2026%20preview%20%C2%B7%20amd64%20%2B%20arm64)](https://github.com/vegardx/setup-aws-credential-helper/actions/workflows/ubuntu-26-compatibility.yml)
+[![Latest release](https://img.shields.io/github/v/release/vegardx/setup-aws-credential-helper?sort=semver)](https://github.com/vegardx/setup-aws-credential-helper/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/vegardx/setup-aws-credential-helper)](LICENSE)
 
 **Renewable, multi-profile AWS credentials for long-running GitHub Actions jobs.**
 
